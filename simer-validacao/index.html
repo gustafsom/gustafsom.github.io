@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SIMER — Ambiente de validação</title>
+  <style>
+    :root{
+      --bg:#f5f7fa;--panel:#ffffff;--panel-2:#f8fafc;--text:#172033;--muted:#667085;
+      --line:#e4e7ec;--accent:#2457c5;--accent-2:#e9efff;--good:#087443;--warn:#b54708;
+      --danger:#b42318;--shadow:0 10px 28px rgba(16,24,40,.08);--radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+    button,input,select{font:inherit}
+    button{cursor:pointer}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:12px;top:12px;z-index:1000;background:#fff;padding:10px 14px;border-radius:8px}
+    .topbar{height:64px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:20}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:700;letter-spacing:.2px}.brandmark{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:14px}.brand small{display:block;color:var(--muted);font-weight:500;font-size:11px;margin-top:1px}
+    .top-actions{display:flex;align-items:center;gap:10px}.pill{padding:7px 10px;border-radius:999px;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;font-weight:700;font-size:12px}.user{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:10px}.avatar{width:32px;height:32px;border-radius:50%;background:#e8eefc;color:var(--accent);display:grid;place-items:center;font-weight:700}
+    .shell{display:grid;grid-template-columns:235px minmax(0,1fr);min-height:calc(100vh - 64px)}
+    aside{background:#fff;border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:64px;height:calc(100vh - 64px);overflow:auto}
+    .nav-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#98a2b3;padding:10px 11px 7px}
+    .navbtn{width:100%;border:0;background:transparent;color:#344054;text-align:left;padding:11px 12px;border-radius:10px;margin:2px 0;display:flex;gap:10px;align-items:center;font-weight:600}.navbtn:hover,.navbtn:focus-visible{background:#f2f4f7}.navbtn.active{background:var(--accent-2);color:var(--accent)}.ico{width:20px;text-align:center;color:#667085}
+    main{padding:28px 30px 46px;min-width:0}.page{display:none}.page.active{display:block}.pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px}.pagehead h1{margin:0 0 6px;font-size:27px}.pagehead p{margin:0;color:var(--muted)}
+    .cycle{background:#fff;border:1px solid var(--line);padding:10px 12px;border-radius:10px;color:#344054;white-space:nowrap}
+    .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}.metric{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:17px 18px}.metric .k{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}.metric .v{font-size:28px;font-weight:750;margin-top:6px}.metric .sub{font-size:12px;color:var(--muted);margin-top:4px}.v.good{color:var(--good)}.v.warn{color:var(--warn)}
+    .twocol{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);gap:18px}.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 1px 1px rgba(16,24,40,.02);overflow:hidden;margin-bottom:18px}.cardhead{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.cardhead h2{font-size:17px;margin:0}.cardhead span{font-size:12px;color:var(--muted)}.cardbody{padding:17px 18px}
+    .agenda{display:grid;gap:10px}.agitem{display:grid;grid-template-columns:9px minmax(0,1fr) auto;gap:11px;align-items:start;padding:12px;border:1px solid var(--line);border-radius:11px;background:#fff}.dot{width:9px;height:9px;border-radius:50%;margin-top:5px;background:#98a2b3}.dot.red{background:#d92d20}.dot.orange{background:#f79009}.dot.blue{background:#2e90fa}.agitem strong{display:block;font-size:14px}.agitem p{margin:3px 0 0;color:var(--muted);font-size:12px;line-height:1.45}.tag{font-size:11px;font-weight:700;border-radius:999px;padding:4px 8px;background:#f2f4f7;color:#475467;white-space:nowrap}.tag.red{background:#fef3f2;color:#b42318}.tag.orange{background:#fffaeb;color:#b54708}.tag.green{background:#ecfdf3;color:#087443}.tag.blue{background:#eff8ff;color:#175cd3}
+    table{width:100%;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#667085;background:#fcfcfd}td{font-size:13px}.muted{color:var(--muted)}.tablewrap{overflow:auto}.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}.status::before{content:"";width:7px;height:7px;border-radius:50%;background:#98a2b3}.status.good::before{background:#12b76a}.status.warn::before{background:#f79009}.status.blue::before{background:#2e90fa}.status.red::before{background:#f04438}
+    .btn{border:1px solid var(--line);background:#fff;color:#344054;padding:9px 12px;border-radius:9px;font-weight:700}.btn:hover{background:#f9fafb}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.ghost{border-color:transparent;background:transparent;color:var(--accent)}
+    .filterrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.filterrow input,.filterrow select{padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#344054;min-height:40px}.filterrow input{min-width:230px;flex:1}
+    .oppgrid,.peoplegrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.opp,.person{border:1px solid var(--line);border-radius:12px;padding:15px;background:#fff}.opp h3,.person h3{font-size:15px;margin:0 0 8px}.opp p,.person p{font-size:12px;color:var(--muted);line-height:1.5;margin:5px 0}.opp .foot{display:flex;justify-content:space-between;align-items:center;margin-top:13px;gap:8px}.person .initials{width:38px;height:38px;border-radius:10px;background:#eef2f6;display:grid;place-items:center;font-weight:750;margin-bottom:10px}.person .line{display:flex;justify-content:space-between;gap:8px;padding-top:8px;margin-top:8px;border-top:1px solid var(--line);font-size:12px}
+    .readiness{display:grid;gap:12px}.check{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;border:1px solid var(--line);padding:13px;border-radius:11px}.checkicon{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:#ecfdf3;color:#087443;font-weight:800}.checkicon.warn{background:#fffaeb;color:#b54708}.check h3{font-size:14px;margin:2px 0 3px}.check p{font-size:12px;color:var(--muted);margin:0;line-height:1.45}
+    .helpbox{border-left:4px solid var(--accent);background:#f7f9ff;padding:15px 17px;border-radius:0 10px 10px 0;margin-bottom:16px}.helpbox h3{margin:0 0 5px;font-size:15px}.helpbox p{margin:0;color:#475467;line-height:1.55;font-size:13px}.faq details{border-bottom:1px solid var(--line);padding:13px 0}.faq summary{font-weight:700;cursor:pointer}.faq p{color:var(--muted);font-size:13px;line-height:1.55}
+    .notice{display:flex;gap:10px;align-items:flex-start;background:#fffaeb;border:1px solid #fedf89;color:#7a2e0e;padding:12px 14px;border-radius:11px;margin-bottom:18px;font-size:13px}.notice strong{display:block;margin-bottom:2px}
+    .empty{padding:28px;text-align:center;color:var(--muted)}
+    .toast{position:fixed;right:20px;bottom:20px;background:#101828;color:#fff;padding:11px 14px;border-radius:10px;box-shadow:var(--shadow);display:none;z-index:50}.toast.show{display:block}
+    @media(max-width:1050px){.grid4{grid-template-columns:repeat(2,1fr)}.twocol{grid-template-columns:1fr}.oppgrid,.peoplegrid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:760px){.topbar{padding:0 12px}.top-actions .user span{display:none}.shell{grid-template-columns:1fr}aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);display:flex;overflow:auto;padding:8px}.nav-title{display:none}.navbtn{width:auto;white-space:nowrap;padding:9px 10px}.navbtn .ico{display:none}main{padding:20px 14px 38px}.pagehead{flex-direction:column}.grid4{grid-template-columns:1fr 1fr}.oppgrid,.peoplegrid{grid-template-columns:1fr}.cycle{white-space:normal}.agitem{grid-template-columns:8px minmax(0,1fr)}.agitem .tag{grid-column:2;justify-self:start}}
+    @media(max-width:440px){.grid4{grid-template-columns:1fr}.brand small{display:none}.pill{display:none}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+<header class="topbar">
+  <div class="brand"><div class="brandmark">SI</div><div>SIMER<small>Transparência de entregas e oportunidades</small></div></div>
+  <div class="top-actions"><span class="pill">AMBIENTE DE VALIDAÇÃO</span><div class="user"><div class="avatar">AV</div><span><strong>Administrador</strong><br><small class="muted">Perfil de validação</small></span></div></div>
+</header>
+<div class="shell">
+  <aside aria-label="Navegação principal">
+    <div class="nav-title">Trabalho</div>
+    <button class="navbtn active" data-page="resumo"><span class="ico">▦</span>Resumo</button>
+    <button class="navbtn" data-page="trabalho"><span class="ico">✓</span>Meu trabalho</button>
+    <button class="navbtn" data-page="oportunidades"><span class="ico">◇</span>Oportunidades</button>
+    <button class="navbtn" data-page="pessoas"><span class="ico">○</span>Pessoas</button>
+    <div class="nav-title">Ciclo</div>
+    <button class="navbtn" data-page="fechamento"><span class="ico">◎</span>Fechamento</button>
+    <div class="nav-title">Sistema</div>
+    <button class="navbtn" data-page="administracao"><span class="ico">⚙</span>Administração</button>
+    <button class="navbtn" data-page="ajuda"><span class="ico">?</span>Ajuda</button>
+  </aside>
+  <main id="conteudo">
+    <div class="notice"><span>ⓘ</span><div><strong>Prévia estática com dados fictícios</strong>Esta página serve apenas para validar layout e navegação. Não possui banco, autenticação real nem dados de empregados.</div></div>
+
+    <section class="page active" id="page-resumo">
+      <div class="pagehead"><div><h1>Resumo</h1><p>Visão factual do ciclo, sem nota, ranking ou recomendação automática.</p></div><div class="cycle"><strong>Ciclo 2026</strong><br><small class="muted">Publicado · 01/01 a 31/12</small></div></div>
+      <div class="grid4">
+        <div class="metric"><div class="k">Entregas</div><div class="v">12</div><div class="sub">No ciclo atual</div></div>
+        <div class="metric"><div class="k">Em andamento</div><div class="v">5</div><div class="sub">Com responsável definido</div></div>
+        <div class="metric"><div class="k">Concluídas</div><div class="v good">6</div><div class="sub">Com resultado registrado</div></div>
+        <div class="metric"><div class="k">Impedimentos</div><div class="v warn">1</div><div class="sub">Requer acompanhamento</div></div>
+      </div>
+      <div class="twocol">
+        <div>
+          <article class="card"><div class="cardhead"><h2>Agenda gerencial</h2><span>Prioridades derivadas dos registros</span></div><div class="cardbody"><div class="agenda">
+            <div class="agitem"><span class="dot red"></span><div><strong>Revisar impedimento da entrega “Inspeções trimestrais”</strong><p>Há impedimento aberto e prazo pactuado próximo.</p></div><span class="tag red">Prioridade alta</span></div>
+            <div class="agitem"><span class="dot orange"></span><div><strong>Registrar alinhamento de duas entregas</strong><p>As entregas já possuem responsáveis, mas o alinhamento inicial ainda não foi documentado.</p></div><span class="tag orange">Alinhamento</span></div>
+            <div class="agitem"><span class="dot blue"></span><div><strong>Acompanhar atualização de “Inventário de riscos”</strong><p>Última atualização registrada há 32 dias.</p></div><span class="tag blue">Acompanhamento</span></div>
+            <div class="agitem"><span class="dot blue"></span><div><strong>Compor oportunidade “Revisão do checklist NR-10”</strong><p>Há duas manifestações de interesse aguardando definição.</p></div><span class="tag">Oportunidade</span></div>
+          </div></div></article>
+          <article class="card"><div class="cardhead"><h2>Entregas do ciclo</h2><button class="btn ghost" data-page-jump="trabalho">Ver todas</button></div><div class="tablewrap"><table><thead><tr><th>Entrega</th><th>Responsável</th><th>Prazo</th><th>Status</th></tr></thead><tbody>
+            <tr><td><strong>Atualização do PGR</strong><div class="muted">Documentação e consolidação regional</div></td><td>Ana Ribeiro</td><td>30/09/2026</td><td><span class="status blue">Em andamento</span></td></tr>
+            <tr><td><strong>Plano de ação ergonômico</strong><div class="muted">Acompanhamento das ações priorizadas</div></td><td>Bruno Lima</td><td>15/10/2026</td><td><span class="status blue">Em andamento</span></td></tr>
+            <tr><td><strong>Relatório de inspeções</strong><div class="muted">Consolidação trimestral</div></td><td>Carla Mendes</td><td>31/08/2026</td><td><span class="status warn">Atenção</span></td></tr>
+            <tr><td><strong>Capacitação interna</strong><div class="muted">Conteúdo e registro de participação</div></td><td>Diego Costa</td><td>20/08/2026</td><td><span class="status good">Concluída</span></td></tr>
+          </tbody></table></div></article>
+        </div>
+        <div>
+          <article class="card"><div class="cardhead"><h2>Oportunidades abertas</h2><span>3 disponíveis</span></div><div class="cardbody">
+            <div class="opp" style="margin-bottom:10px"><h3>Revisão do checklist NR-10</h3><p>Participação na revisão técnica e na validação do formulário.</p><div class="foot"><span class="tag blue">2 interessados</span><button class="btn" data-demo>Detalhes</button></div></div>
+            <div class="opp"><h3>Padronização de evidências</h3><p>Apoio na organização do modelo de registro das evidências de SST.</p><div class="foot"><span class="tag">Aberta</span><button class="btn" data-demo>Detalhes</button></div></div>
+          </div></article>
+          <article class="card"><div class="cardhead"><h2>Fechamento do ciclo</h2><span>Leitura não bloqueante</span></div><div class="cardbody"><div class="readiness">
+            <div class="check"><span class="checkicon">✓</span><div><h3>Entregas concluídas consistentes</h3><p>Resultados e datas estão registrados nas entregas concluídas.</p></div></div>
+            <div class="check"><span class="checkicon warn">!</span><div><h3>1 impedimento em aberto</h3><p>O fechamento continua permitido, mas o ponto ficará visível no resumo factual.</p></div></div>
+          </div><button class="btn primary" style="margin-top:14px" data-page-jump="fechamento">Ver fechamento</button></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-trabalho">
+      <div class="pagehead"><div><h1>Meu trabalho</h1><p>Entregas do ciclo com responsáveis, alinhamentos, prazos e registros factuais.</p></div><button class="btn primary" data-demo>Nova entrega</button></div>
+      <div class="filterrow"><input id="workSearch" type="search" placeholder="Buscar entrega ou responsável"><select id="workStatus"><option value="all">Todos os status</option><option value="andamento">Em andamento</option><option value="concluida">Concluída</option><option value="atencao">Atenção</option></select></div>
+      <article class="card"><div class="tablewrap"><table id="workTable"><thead><tr><th>Entrega</th><th>Responsável</th><th>Alinhamento</th><th>Prazo</th><th>Status</th><th></th></tr></thead><tbody>
+        <tr data-status="andamento"><td><strong>Atualização do PGR</strong><br><span class="muted">Riscos e plano de ação</span></td><td>Ana Ribeiro</td><td>12/08/2026</td><td>30/09/2026</td><td><span class="status blue">Em andamento</span></td><td><button class="btn" data-demo>Abrir</button></td></tr>
+        <tr data-status="andamento"><td><strong>Plano de ação ergonômico</strong><br><span class="muted">Acompanhamento regional</span></td><td>Bruno Lima</td><td>05/08/2026</td><td>15/10/2026</td><td><span class="status blue">Em andamento</span></td><td><button class="btn" data-demo>Abrir</button></td></tr>
+        <tr data-status="atencao"><td><strong>Relatório de inspeções</strong><br><span class="muted">Consolidação trimestral</span></td><td>Carla Mendes</td><td>18/07/2026</td><td>31/08/2026</td><td><span class="status warn">Atenção</span></td><td><button class="btn" data-demo>Abrir</button></td></tr>
+        <tr data-status="concluida"><td><strong>Capacitação interna</strong><br><span class="muted">Registro e materiais</span></td><td>Diego Costa</td><td>03/07/2026</td><td>20/08/2026</td><td><span class="status good">Concluída</span></td><td><button class="btn" data-demo>Abrir</button></td></tr>
+      </tbody></table></div></article>
+    </section>
+
+    <section class="page" id="page-oportunidades">
+      <div class="pagehead"><div><h1>Oportunidades</h1><p>Possibilidades de contribuição registradas para ampliar transparência de acesso e participação.</p></div><button class="btn primary" data-demo>Nova oportunidade</button></div>
+      <div class="oppgrid">
+        <article class="opp"><span class="tag blue">Aberta</span><h3 style="margin-top:10px">Revisão do checklist NR-10</h3><p>Revisar estrutura, clareza das perguntas e aderência ao procedimento interno.</p><p><strong>Prazo:</strong> 18/09/2026</p><div class="foot"><span class="muted">2 manifestações</span><button class="btn" data-demo>Visualizar</button></div></article>
+        <article class="opp"><span class="tag blue">Aberta</span><h3 style="margin-top:10px">Padronização de evidências</h3><p>Estruturar padrão de evidências para inspeções e acompanhamento de planos.</p><p><strong>Prazo:</strong> 25/09/2026</p><div class="foot"><span class="muted">Sem manifestações</span><button class="btn" data-demo>Visualizar</button></div></article>
+        <article class="opp"><span class="tag blue">Aberta</span><h3 style="margin-top:10px">Apoio em comunicação de SST</h3><p>Revisar conteúdo de comunicação interna e organizar material de apoio.</p><p><strong>Prazo:</strong> 04/10/2026</p><div class="foot"><span class="muted">1 manifestação</span><button class="btn" data-demo>Visualizar</button></div></article>
+      </div>
+    </section>
+
+    <section class="page" id="page-pessoas">
+      <div class="pagehead"><div><h1>Pessoas</h1><p>Consulta de informações profissionais da equipe e histórico factual autorizado.</p></div><div class="cycle">Eixo da equipe: <strong>Segurança do Trabalho</strong></div></div>
+      <div class="filterrow"><input id="peopleSearch" type="search" placeholder="Buscar pessoa, cargo ou unidade"></div>
+      <div class="peoplegrid" id="peopleGrid">
+        <article class="person"><div class="initials">AR</div><h3>Ana Ribeiro</h3><p>Técnica de Segurança do Trabalho<br>Regional Recife</p><div class="line"><span>Promoções</span><strong>2022, 2025</strong></div><div class="line"><span>Situação</span><span class="tag green">Ativa</span></div></article>
+        <article class="person"><div class="initials">BL</div><h3>Bruno Lima</h3><p>Técnico de Segurança do Trabalho<br>Regional Brasília</p><div class="line"><span>Promoções</span><strong>2021, 2024</strong></div><div class="line"><span>Situação</span><span class="tag green">Ativo</span></div></article>
+        <article class="person"><div class="initials">CM</div><h3>Carla Mendes</h3><p>Engenheira de Segurança do Trabalho<br>Regional São Paulo</p><div class="line"><span>Promoções</span><strong>2023</strong></div><div class="line"><span>Situação</span><span class="tag green">Ativa</span></div></article>
+        <article class="person"><div class="initials">DC</div><h3>Diego Costa</h3><p>Técnico de Segurança do Trabalho<br>Regional Fortaleza</p><div class="line"><span>Promoções</span><strong>2020, 2024</strong></div><div class="line"><span>Situação</span><span class="tag green">Ativo</span></div></article>
+      </div>
+    </section>
+
+    <section class="page" id="page-fechamento">
+      <div class="pagehead"><div><h1>Fechamento do ciclo</h1><p>Leitura de prontidão derivada dos registros. Não bloqueia o fechamento e não produz nota.</p></div><div class="cycle"><strong>Ciclo 2026</strong><br><small class="muted">Situação: publicado</small></div></div>
+      <article class="card"><div class="cardhead"><h2>Prontidão factual</h2><span>Atualizada a partir dos dados registrados</span></div><div class="cardbody"><div class="readiness">
+        <div class="check"><span class="checkicon">✓</span><div><h3>Entregas concluídas com resultado</h3><p>6 de 6 entregas concluídas possuem data e resultado registrados.</p></div><span class="tag green">OK</span></div>
+        <div class="check"><span class="checkicon">✓</span><div><h3>Datas consistentes</h3><p>Não foram identificados prazos anteriores às respectivas datas de alinhamento.</p></div><span class="tag green">OK</span></div>
+        <div class="check"><span class="checkicon warn">!</span><div><h3>Impedimento em aberto</h3><p>Uma entrega possui impedimento registrado. O item é informativo e não impede o fechamento.</p></div><span class="tag orange">Atenção</span></div>
+        <div class="check"><span class="checkicon">✓</span><div><h3>Oportunidades coerentes</h3><p>Oportunidades encerradas não aceitam novas manifestações.</p></div><span class="tag green">OK</span></div>
+      </div></div></article>
+    </section>
+
+    <section class="page" id="page-administracao">
+      <div class="pagehead"><div><h1>Administração</h1><p>Configurações, usuários, convites temporários e exportação administrativa.</p></div></div>
+      <div class="twocol">
+        <article class="card"><div class="cardhead"><h2>Gestão de usuários</h2><button class="btn primary" data-demo>Criar convite temporário</button></div><div class="tablewrap"><table><thead><tr><th>Usuário</th><th>Perfil</th><th>Situação</th><th></th></tr></thead><tbody><tr><td>Administrador</td><td>Administrador</td><td><span class="status good">Ativo</span></td><td><button class="btn" data-demo>Gerenciar</button></td></tr><tr><td>Gestor de validação</td><td>Gestor</td><td><span class="status good">Ativo</span></td><td><button class="btn" data-demo>Gerenciar</button></td></tr><tr><td>Colaborador fictício</td><td>Empregado</td><td><span class="status good">Ativo</span></td><td><button class="btn" data-demo>Gerenciar</button></td></tr></tbody></table></div></article>
+        <div>
+          <article class="card"><div class="cardhead"><h2>Exportação</h2></div><div class="cardbody"><p class="muted" style="line-height:1.55">A exportação administrativa completa reúne os dados funcionais em um único arquivo, sem senhas, hashes, sessões ou tokens.</p><button class="btn primary" data-demo>Exportar todos os dados</button></div></article>
+          <article class="card"><div class="cardhead"><h2>Fuso de referência</h2></div><div class="cardbody"><label for="tz"><strong>Fuso da equipe</strong></label><select id="tz" style="margin-top:8px;width:100%;padding:10px;border:1px solid var(--line);border-radius:9px"><option>America/Recife</option><option>America/Sao_Paulo</option><option>America/Manaus</option></select><p class="muted" style="font-size:12px">Datas civis permanecem datas civis; registros técnicos usam UTC.</p></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-ajuda">
+      <div class="pagehead"><div><h1>Ajuda</h1><p>Orientações rápidas sobre o propósito e as principais rotinas do SIMER.</p></div></div>
+      <div class="helpbox"><h3>O que o SIMER registra?</h3><p>Entregas, alinhamentos, oportunidades, contribuições e feedbacks de forma transparente e factual. O sistema não cria nota, ranking nem recomendação automática de promoção.</p></div>
+      <article class="card"><div class="cardbody faq">
+        <details open><summary>Qual a diferença entre entrega e oportunidade?</summary><p>Entrega é um trabalho definido no ciclo. Oportunidade é uma possibilidade transparente de contribuição antes da composição definitiva dos participantes.</p></details>
+        <details><summary>O que acontece quando um ciclo é encerrado?</summary><p>O histórico permanece disponível para consulta e o ciclo passa a ser somente leitura. Não são aceitas novas escritas.</p></details>
+        <details><summary>Como funciona o convite de acesso?</summary><p>O administrador gera um link temporário, de uso único, para que o usuário defina sua senha. O link expira conforme o prazo configurado.</p></details>
+        <details><summary>A exportação contém credenciais?</summary><p>Não. A exportação administrativa exclui senhas, hashes, sessões e tokens.</p></details>
+      </article>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite">Ação demonstrativa — esta prévia não grava dados.</div>
+<script>
+(function(){
+  const buttons=[...document.querySelectorAll('.navbtn')];
+  const pages=[...document.querySelectorAll('.page')];
+  const toast=document.getElementById('toast');
+  let toastTimer;
+  function openPage(name){
+    pages.forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
+    buttons.forEach(b=>b.classList.toggle('active',b.dataset.page===name));
+    const h=document.querySelector('#page-'+name+' h1'); if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:false});}
+    history.replaceState(null,'','#'+name);
+  }
+  buttons.forEach(b=>b.addEventListener('click',()=>openPage(b.dataset.page)));
+  document.querySelectorAll('[data-page-jump]').forEach(b=>b.addEventListener('click',()=>openPage(b.dataset.pageJump)));
+  document.querySelectorAll('[data-demo]').forEach(b=>b.addEventListener('click',()=>{clearTimeout(toastTimer);toast.classList.add('show');toastTimer=setTimeout(()=>toast.classList.remove('show'),2400);}));
+  const ws=document.getElementById('workSearch'), st=document.getElementById('workStatus');
+  function filterWork(){const q=(ws.value||'').toLowerCase(),s=st.value;document.querySelectorAll('#workTable tbody tr').forEach(r=>{const matchText=!q||r.textContent.toLowerCase().includes(q);const matchStatus=s==='all'||r.dataset.status===s;r.style.display=matchText&&matchStatus?'':'none';});}
+  ws.addEventListener('input',filterWork);st.addEventListener('change',filterWork);
+  const ps=document.getElementById('peopleSearch');ps.addEventListener('input',()=>{const q=ps.value.toLowerCase();document.querySelectorAll('#peopleGrid .person').forEach(p=>p.style.display=!q||p.textContent.toLowerCase().includes(q)?'':'none');});
+  const initial=(location.hash||'#resumo').slice(1);if(document.getElementById('page-'+initial))openPage(initial);
+})();
+</script>
+</body>
+</html>
