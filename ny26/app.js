@@ -17,19 +17,60 @@ function cachedRoute(){try{return JSON.parse(localStorage.getItem(K.route)||'nul
 function refresh(){let s,t='wait';if(!navigator.onLine)s='📵 Offline';else if(pending)s='⏳ Enviando';else if(fromCache)s='🟡 Cache local';else if(lastServer){s='✅ Sincronizado';t='good'}else s='☁️ Conectando';banner(s,t);
  $msg('sync-explanation',(lastServer?'Último retorno confirmado do servidor: '+new Date(lastServer).toLocaleString('pt-BR')+'. ':'Ainda sem confirmação do servidor. ')+(pending?'Há alterações aguardando envio. ':'')+'Alterações entre celulares exigem internet.');
 }
-function openFrame(html){const frame=$('viewer');frameReady=false;frame.onload=()=>{frameReady=true;for(const d of ['actions','packing'])lastMaps[d]=toMap(read(d),d);
- try{
-  // A V8 ainda traz a aba visual da integracao anterior (Supabase). O script
-  // antigo ja foi removido durante a importacao; ocultamos tambem a tela
-  // obsoleta sem alterar a copia privada armazenada no Firebase.
-  const legacyNav=frame.contentDocument.querySelector('a[data-view="sincronizacao"]');
-  legacyNav?.remove();
-  frame.contentDocument.getElementById('sincronizacao')?.remove();
-  frame.contentDocument.addEventListener('ny26:data-change',e=>localChanged(e.detail?.domain));
- if(role==='viewer'){const style=frame.contentDocument.createElement('style');style.textContent='#ck-add,#pk-add,#ck-editor,#pk-editor,[data-ck-edit],[data-ck-remove],[data-pk-edit],[data-pk-delete],[data-pk-stage]{pointer-events:none!important;opacity:.5}';frame.contentDocument.head.appendChild(style)}
- }catch(e){console.warn('Inicialização da ficha:',e)}
- if(window.ny26Snapshot)applySnapshot(window.ny26Snapshot);
-};frame.srcdoc=html;document.body.classList.add('running');refresh();
+function sanitizeRouteHtml(source){
+ // Documents loaded with iframe.srcdoc inherit the *parent URL as base*.
+ // Without an explicit base, links such as #mala can navigate the iframe to
+ // /ny26/#mala, recursively loading this application inside itself.
+ let h=String(source||'');
+ h=h.replace(/<script>\s*\/\*\s*NY26 v7[^\n]*\n[\s\S]*?<\/script>/gi,'');
+ h=h.replace(/<head([^>]*)>/i,'<head$1><base href="about:srcdoc">');
+ return h;
+}
+function openFrame(html){
+ const frame=$('viewer'),safe=sanitizeRouteHtml(html);
+ let repairs=0;
+ frameReady=false;
+ frame.onload=()=>{
+  let doc;
+  try{doc=frame.contentDocument}catch(e){doc=null}
+  if(!doc?.getElementById('mala')||!doc?.getElementById('checklist')){
+   // Defensive recovery: if a browser follows a fragment to the parent
+   // NY26 URL, restore the actual private document instead of nesting apps.
+   if(++repairs<=1){frame.srcdoc=safe;return}
+   frameReady=false;error('Falha ao abrir o roteiro. Volte a Roteiro e recarregue a página.');
+   return;
+  }
+  frameReady=true;
+  for(const d of ['actions','packing'])lastMaps[d]=toMap(read(d),d);
+  try{
+   // Capture all internal links before srcdoc resolves them against the
+   // parent page. Keep hashchange/:target semantics for modals and day tabs.
+   doc.addEventListener('click',ev=>{
+    const link=ev.target?.closest?.('a[href^="#"]');
+    if(!link)return;
+    const hash=link.getAttribute('href');
+    if(!hash||hash==='#')return;
+    let id;try{id=decodeURIComponent(hash.slice(1))}catch{return}
+    if(!doc.getElementById(id))return;
+    ev.preventDefault();
+    const inner=frame.contentWindow;
+    if(inner.location.hash!==hash)inner.location.hash=hash;
+    else inner.dispatchEvent(new inner.Event('hashchange'));
+   },true);
+   doc.querySelectorAll('a[href="#sincronizacao"],a[data-view="sincronizacao"]').forEach(el=>el.remove());
+   doc.getElementById('sincronizacao')?.remove();
+   doc.addEventListener('ny26:data-change',e=>localChanged(e.detail?.domain));
+   if(role==='viewer'){
+    const style=doc.createElement('style');
+    style.textContent='#ck-add,#pk-add,#ck-editor,#pk-editor,[data-ck-edit],[data-ck-remove],[data-pk-edit],[data-pk-delete],[data-pk-stage]{pointer-events:none!important;opacity:.5}';
+    doc.head.appendChild(style);
+   }
+  }catch(e){console.warn('Inicialização da ficha:',e)}
+  if(window.ny26Snapshot)applySnapshot(window.ny26Snapshot);
+ };
+ frame.srcdoc=safe;
+ document.body.classList.add('running');
+ refresh();
 }
 function applyRoute(html,version,local){if(typeof html!=='string'||html.length<10000)return;fromCache=local;if(routeVer===version&&frameReady){refresh();return}routeVer=version;
  try{localStorage.setItem(K.route,JSON.stringify({html,version,updated:Date.now()}))}catch(e){console.warn('Cache do roteiro cheio:',e)}
