@@ -81,7 +81,10 @@ async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('l
 async function importRoute(){if(role!=='admin')throw Error('Somente administrador pode importar o roteiro.');
  if(!navigator.onLine)throw Error('Conecte-se à internet para publicar o roteiro.');
  const f=$('route-import').files[0];if(!f)throw Error('Selecione o arquivo HTML privado.');
- const html=await f.text();if(html.length<20000||html.length>3000000||!html.includes('id="mala"'))throw Error('Este HTML não corresponde ao roteiro esperado.');
+ let html=await f.text();
+ // Desativa o sincronizador antigo (Supabase V7) do roteiro importado. A PWA usa somente Firebase.
+ html=html.replace(/<script>\s*\/\* NY26 v7[^\n]*\n[\s\S]*?<\/script>/,'');
+ if(html.length<20000||html.length>3000000||!html.includes('id="mala"')||!html.includes('ny26:data-change'))throw Error('Este HTML não corresponde ao roteiro esperado.');
  if(!confirm('Publicar nova versão do roteiro para os participantes autorizados?'))return;
  const pts=Array.from(html),pieces=[];for(let i=0;i<pts.length;i+=32000)pieces.push(pts.slice(i,i+32000).join(''));
  if(pieces.length>85)throw Error('Arquivo acima do limite previsto.');
