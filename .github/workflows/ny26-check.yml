@@ -1,0 +1,39 @@
+name: NY26 - Verificacao automatica
+on:
+  push:
+    paths:
+      - 'ny26/**'
+      - '.github/workflows/ny26-check.yml'
+  pull_request:
+    paths:
+      - 'ny26/**'
+      - '.github/workflows/ny26-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar JavaScript e manifesto
+        run: |
+          node --check ny26/app.js
+          node --check ny26/config.js
+          node --check ny26/sw.js
+          node -e "const m=require('./ny26/manifest.webmanifest'); if(m.scope!='/ny26/'||m.start_url!='/ny26/') process.exit(1)"
+      - name: Bloquear dados privados por engano
+        shell: bash
+        run: |
+          if grep -Eri --include='*.js' --include='*.html' --include='*.json' '(FZPQOO|160 West 25th Street|Super 8 Newburgh|900 Red Mills Rd|NY26_ROTEIRO_V8_IMPORTAR_PRIVADO)' ny26; then
+            echo "::error::Dados da viagem encontrados na pasta publica do NY26"
+            exit 1
+          fi
+          test ! -e ny26/private
+          test ! -e ny26/NY26_ROTEIRO_V8_IMPORTAR_PRIVADO.html
+          test -f ny26/index.html
+          test -f ny26/sw.js
+          echo "Estrutura validada; teste real offline ainda necessario."
