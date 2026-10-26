@@ -69,12 +69,26 @@ function localChanged(domain){if(!['actions','packing'].includes(domain)||role==
  for(const id of Object.keys(before))if(!now[id])saveItem(domain,id,{id},true);
  lastMaps[domain]=now;pending=true;refresh();
 }
+function offerFirstImport(){
+ if(role!=='admin')return;
+ const parent=$('waiting');
+ if($('quick-route-import'))return;
+ const box=document.createElement('div');box.id='quick-route-import';
+ box.style.cssText='margin-top:16px;padding:14px;border:1px solid #c3dbe7;border-radius:12px;background:#eaf4fa';
+ const heading=document.createElement('strong');heading.textContent='Falta importar o roteiro privado (uma vez)';
+ const description=document.createElement('p');description.className='muted';description.textContent='Selecione o arquivo NY_2026_Roteiro_V8_Offline.html. A importação ficará protegida no Firestore; não será publicada no GitHub.';
+ const b=document.createElement('button');b.className='primary';b.textContent='📂 Selecionar roteiro V8 e importar';b.onclick=()=>{
+   show('settings');$('admin-import').classList.remove('hide');$('admin-import').open=true;
+   $('route-import').click();
+ };
+ box.append(heading,description,b);parent.appendChild(box);
+}
 function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';window.ny26Snapshot=null}
 async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('loading-text','Verificando permissão de acesso…');
  try{const p=db.collection('trips').doc(TRIP).collection('members').doc(u.uid);
  let snap;try{snap=await p.get({source:navigator.onLine?'default':'cache'})}catch{snap=await p.get({source:'cache'})}
  if(!snap.exists)throw Error('Seu usuário ainda não foi autorizado pelo administrador.');role=snap.data().role||'viewer';
- $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');
+ $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
  subscribeContent();subscribeState();
  }catch(e){error(e);$msg('loading-text',String(e?.message||e));show('waiting')}
 }
@@ -117,6 +131,7 @@ $('show-settings').onclick=()=>user?settings():show('setup');$('open-settings').
 $('home').onclick=()=>{$('viewer').srcdoc?document.body.classList.add('running'):show('waiting')};
 $('logout').onclick=async()=>{if(!confirm('Sair da conta neste aparelho?'))return;clear();await auth.signOut();show('setup')};
 $('publish-route').onclick=async()=>{try{await importRoute()}catch(e){error(e)}};
+$('route-import').addEventListener('change',async()=>{if(!$('route-import').files?.length)return;try{await importRoute()}catch(e){error(e)}});
 $('try-sync').onclick=()=>{if(user){subscribeContent();subscribeState()}refresh()};
 $('check-update').onclick=async()=>{if(!registration){$msg('settings-msg','A instalação offline exige HTTPS.');return}try{await registration.update();$msg('settings-msg',registration.waiting?'Atualização pronta.':'Verificação concluída.')}catch(e){$msg('settings-msg','Não foi possível consultar o servidor.') }};
 $('test-offline').onclick=async()=>{const c=cachedRoute();const names=await caches.keys().catch(()=>[]);const messages=[c?.html?.length>10000?'✓ Roteiro salvo':'✗ Roteiro ainda não armazenado',names.includes('ny26-shell-gh-v1')?'✓ Estrutura em cache':'✗ App ainda não está em cache',user?'✓ Sessão ativa':'✗ Sem login'];
