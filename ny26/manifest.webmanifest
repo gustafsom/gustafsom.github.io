@@ -1,0 +1,20 @@
+{
+  "name": "NY26 — Viagem",
+  "short_name": "NY26",
+  "description": "Roteiro de viagem privado com uso offline e sincronização",
+  "id": "/ny26/",
+  "start_url": "/ny26/",
+  "scope": "/ny26/",
+  "display": "standalone",
+  "background_color": "#edf3f7",
+  "theme_color": "#102e4a",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "lang": "pt-BR"
+}
