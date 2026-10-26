@@ -18,7 +18,14 @@ function refresh(){let s,t='wait';if(!navigator.onLine)s='📵 Offline';else if(
  $msg('sync-explanation',(lastServer?'Último retorno confirmado do servidor: '+new Date(lastServer).toLocaleString('pt-BR')+'. ':'Ainda sem confirmação do servidor. ')+(pending?'Há alterações aguardando envio. ':'')+'Alterações entre celulares exigem internet.');
 }
 function openFrame(html){const frame=$('viewer');frameReady=false;frame.onload=()=>{frameReady=true;for(const d of ['actions','packing'])lastMaps[d]=toMap(read(d),d);
- try{frame.contentDocument.addEventListener('ny26:data-change',e=>localChanged(e.detail?.domain));
+ try{
+  // A V8 ainda traz a aba visual da integracao anterior (Supabase). O script
+  // antigo ja foi removido durante a importacao; ocultamos tambem a tela
+  // obsoleta sem alterar a copia privada armazenada no Firebase.
+  const legacyNav=frame.contentDocument.querySelector('a[data-view="sincronizacao"]');
+  legacyNav?.remove();
+  frame.contentDocument.getElementById('sincronizacao')?.remove();
+  frame.contentDocument.addEventListener('ny26:data-change',e=>localChanged(e.detail?.domain));
  if(role==='viewer'){const style=frame.contentDocument.createElement('style');style.textContent='#ck-add,#pk-add,#ck-editor,#pk-editor,[data-ck-edit],[data-ck-remove],[data-pk-edit],[data-pk-delete],[data-pk-stage]{pointer-events:none!important;opacity:.5}';frame.contentDocument.head.appendChild(style)}
  }catch(e){console.warn('Inicialização da ficha:',e)}
  if(window.ny26Snapshot)applySnapshot(window.ny26Snapshot);
