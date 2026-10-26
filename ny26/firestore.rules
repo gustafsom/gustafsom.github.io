@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberPath() {
+      return /databases/$(database)/documents/trips/ny26/members/$(request.auth.uid);
+    }
+
+    function isMember() {
+      return signedIn() && exists(memberPath())
+        && get(memberPath()).data.role in ['admin', 'editor', 'viewer'];
+    }
+
+    function canEdit() {
+      return isMember()
+        && get(memberPath()).data.role in ['admin', 'editor'];
+    }
+
+    function isAdmin() {
+      return isMember() && get(memberPath()).data.role == 'admin';
+    }
+
+    match /trips/ny26/members/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+
+      // Memberships are bootstrapped and maintained in the Firebase console
+      // or via an administrative server identity. Never permit self-approval.
+      allow create, update, delete: if false;
+    }
+
+    match /trips/ny26/content/{id} {
+      allow get, list: if isMember();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['version','index','text','count','updatedAt'])
+        && request.resource.data.version is string
+        && request.resource.data.version.size() <= 80
+        && request.resource.data.index is int
+        && request.resource.data.text is string
+        && request.resource.data.text.size() < 50000
+        && request.resource.data.count is int
+        && request.resource.data.count >= 0
+        && request.resource.data.count <= 90
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    match /trips/ny26/state/{id} {
+      allow get, list: if isMember();
+      allow create, update: if canEdit()
+        && request.resource.data.keys().hasOnly(['domain','value','deleted','device','updatedAt'])
+        && request.resource.data.keys().hasAll(['domain','value','deleted','device','updatedAt'])
+        && request.resource.data.domain in ['actions', 'packing']
+        && (
+           (request.resource.data.domain == 'actions' && id.matches('a_.*'))
+           || (request.resource.data.domain == 'packing' && id.matches('p_.*'))
+        )
+        && request.resource.data.value is map
+        && request.resource.data.value.id is string
+        && request.resource.data.value.id.size() <= 180
+        && request.resource.data.deleted is bool
+        && request.resource.data.device is string
+        && request.resource.data.device.size() <= 100
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
