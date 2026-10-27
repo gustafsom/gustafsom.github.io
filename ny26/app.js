@@ -9,7 +9,26 @@ const $msg=(id,v)=>$(id).textContent=v||'';
 function banner(s,type='wait'){$('status').textContent=s;$('status').className='status '+type;$msg('app-message',s)}
 function show(id){for(const part of ['setup','waiting','settings'])$(part).classList.toggle('hide',part!==id);document.body.classList.remove('running')}
 function error(e){const msg=String(e?.message||e);$msg('message',msg);$msg('settings-msg',msg);banner('⚠ Atenção','bad')}
-function read(domain){try{const o=JSON.parse(localStorage.getItem(K[domain])||'null');return o&&Array.isArray(o[domain==='actions'?'tasks':'items'])?o:null}catch{return null}}
+// Normalização retrocompatível dos nomes, inclusive nos dados já salvos no celular.
+function renameChildren(value){
+ if(typeof value==='string')return value.replace(/Menina 1/g,'Lia').replace(/Menina 2/g,'Lais');
+ if(Array.isArray(value))return value.map(renameChildren);
+ if(value&&typeof value==='object'){
+  const next={};
+  for(const [key,item] of Object.entries(value))next[key]=renameChildren(item);
+  return next;
+ }
+ return value;
+}
+function read(domain){
+ try{
+  const raw=JSON.parse(localStorage.getItem(K[domain])||'null');
+  if(!raw)return null;
+  const o=renameChildren(raw);
+  if(JSON.stringify(o)!==JSON.stringify(raw))localStorage.setItem(K[domain],JSON.stringify(o));
+  return Array.isArray(o[domain==='actions'?'tasks':'items'])?o:null;
+ }catch{return null}
+}
 function toMap(o,d){return Object.fromEntries((o?.[d==='actions'?'tasks':'items']||[]).filter(x=>x&&typeof x.id==='string').map(x=>[x.id,x]))}
 function save(domain,map){const key=domain==='actions'?'tasks':'items';localStorage.setItem(K[domain],JSON.stringify({[key]:Object.values(map),updated:Date.now()}))}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b)}
@@ -21,12 +40,13 @@ function sanitizeRouteHtml(source){
  // Documents loaded with iframe.srcdoc inherit the *parent URL as base*.
  // Without an explicit base, links such as #mala can navigate the iframe to
  // /ny26/#mala, recursively loading this application inside itself.
- let h=String(source||'');
+ let h=renameChildren(String(source||''));
  h=h.replace(/<script>\s*\/\*\s*NY26 v7[^\n]*\n[\s\S]*?<\/script>/gi,'');
  h=h.replace(/<head([^>]*)>/i,'<head$1><base href="about:srcdoc">');
  return h;
 }
 function openFrame(html){
+ for(const domain of ['actions','packing'])read(domain);
  const frame=$('viewer'),safe=sanitizeRouteHtml(html);
  let repairs=0;
  frameReady=false;
@@ -91,7 +111,7 @@ function subscribeContent(){cStop?.();cStop=db.collection('trips').doc(TRIP).col
 function applySnapshot(snap){window.ny26Snapshot=snap;pending=snap.metadata.hasPendingWrites;fromCache=snap.metadata.fromCache;if(!pending&&!fromCache)lastServer=Date.now();
  if(!frameReady){refresh();return}
  const remote={actions:{},packing:{}};
- for(const d of snap.docs){const v=d.data();if(remote[v.domain]&&v.value&&typeof v.value.id==='string')remote[v.domain][v.value.id]=v}
+ for(const d of snap.docs){const v=d.data();if(remote[v.domain]&&v.value&&typeof v.value.id==='string')remote[v.domain][v.value.id]={...v,value:renameChildren(v.value)}}
  for(const domain of ['actions','packing']){
   const map=toMap(read(domain),domain);let changed=false;
   for(const [id,rec] of Object.entries(remote[domain])){
@@ -108,7 +128,7 @@ function applySnapshot(snap){window.ny26Snapshot=snap;pending=snap.metadata.hasP
 function subscribeState(){sStop?.();sStop=db.collection('trips').doc(TRIP).collection('state').onSnapshot({includeMetadataChanges:true},applySnapshot,e=>error('Erro ao sincronizar tarefas: '+e.message))}
 function saveItem(domain,id,value,deleted){if(!db||!user)return;
  const doc=(domain==='actions'?'a_':'p_')+encodeURIComponent(id);
- db.collection('trips').doc(TRIP).collection('state').doc(doc).set({domain,value,deleted,device,updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
+ db.collection('trips').doc(TRIP).collection('state').doc(doc).set({domain,value:renameChildren(value),deleted,device,updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
  .catch(e=>error('Alteração ainda não sincronizada: '+e.message+'. Gere um backup antes de fechar o app.'));
 }
 function localChanged(domain){if(!['actions','packing'].includes(domain)||role==='viewer')return;
