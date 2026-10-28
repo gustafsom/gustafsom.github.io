@@ -188,6 +188,15 @@ function serviceWorker(){if(!('serviceWorker' in navigator)||!location.protocol.
 }
 function updateReady(reg){$('notice').style.display='block';$('update-now').onclick=()=>reg.waiting?.postMessage({type:'SKIP_WAITING'})}
 function settings(){show('settings');refresh()}
+function returnFromSettings(){
+  if(!user){show('setup');return}
+  if($('viewer').srcdoc){
+    document.body.classList.add('running');
+    refresh();
+  }else{
+    show('waiting');
+  }
+}
 async function boot(){serviceWorker();const cfg=window.NY26_FIREBASE_CONFIG;
  if(!cfg||!cfg.apiKey||!cfg.projectId||!cfg.appId||!window.firebase?.initializeApp){$('config-missing').classList.remove('hide');banner('⚙️ Ativação pendente','wait');return}
  try{firebase.initializeApp(cfg);auth=firebase.auth();await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);db=firebase.firestore();
@@ -214,7 +223,9 @@ $('reset-password').onclick=async()=>{
   }finally{button.disabled=false}
 };
 
-$('show-settings').onclick=()=>user?settings():show('setup');$('open-settings').onclick=settings;
+$('show-settings').onclick=()=>!$('settings').classList.contains('hide')?returnFromSettings():user?settings():show('setup');
+$('open-settings').onclick=settings;
+$('back-settings').onclick=returnFromSettings;
 $('home').onclick=()=>{$('viewer').srcdoc?document.body.classList.add('running'):show('waiting')};
 $('logout').onclick=async()=>{if(!confirm('Sair da conta neste aparelho?'))return;clear();await auth.signOut();show('setup')};
 $('publish-route').onclick=async()=>{try{await importRoute()}catch(e){error(e)}};
