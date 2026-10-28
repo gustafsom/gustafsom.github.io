@@ -191,6 +191,9 @@ function settings(){show('settings');refresh()}
 function returnFromSettings(){
   if(!user){show('setup');return}
   if($('viewer').srcdoc){
+    // Oculta as configuracoes antes de restaurar o visor; caso contrario
+    // a engrenagem pensa que a tela ainda esta aberta no proximo toque.
+    show('waiting');
     document.body.classList.add('running');
     refresh();
   }else{
@@ -226,7 +229,7 @@ $('reset-password').onclick=async()=>{
 $('show-settings').onclick=()=>!$('settings').classList.contains('hide')?returnFromSettings():user?settings():show('setup');
 $('open-settings').onclick=settings;
 $('back-settings').onclick=returnFromSettings;
-$('home').onclick=()=>{$('viewer').srcdoc?document.body.classList.add('running'):show('waiting')};
+$('home').onclick=returnFromSettings;
 $('logout').onclick=async()=>{if(!confirm('Sair da conta neste aparelho?'))return;clear();await auth.signOut();show('setup')};
 $('publish-route').onclick=async()=>{try{await importRoute()}catch(e){error(e)}};
 $('route-import').addEventListener('change',async()=>{if(!$('route-import').files?.length)return;try{await importRoute()}catch(e){error(e)}});
