@@ -86,6 +86,7 @@ function openFrame(html){
     doc.head.appendChild(style);
    }
   }catch(e){console.warn('Inicialização da ficha:',e)}
+  try{window.NY26RouteAdvice?.decorate(doc)}catch(e){console.warn('Guia de orientacoes:',e)}
   if(window.ny26Snapshot)applySnapshot(window.ny26Snapshot);
  };
  frame.srcdoc=safe;
