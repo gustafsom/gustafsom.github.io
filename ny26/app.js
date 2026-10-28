@@ -196,6 +196,24 @@ async function boot(){serviceWorker();const cfg=window.NY26_FIREBASE_CONFIG;
  }catch(e){error(e)}
 }
 $('login-form').onsubmit=async ev=>{ev.preventDefault();try{$msg('message','');await auth.signInWithEmailAndPassword($('email').value.trim(),$('password').value)}catch(e){error('Login: '+e.message)}};
+$('reset-password').onclick=async()=>{
+  const email=$('email').value.trim();
+  if(!email){$msg('message','Digite primeiro seu e-mail no campo acima.');$('email').focus();return}
+  if(!navigator.onLine){$msg('message','A recuperação de senha precisa de internet.');return}
+  const button=$('reset-password');
+  button.disabled=true;
+  try{
+    await auth.sendPasswordResetEmail(email);
+    $msg('message','Se o e-mail estiver cadastrado, você receberá uma mensagem do Firebase com o link para definir uma nova senha. Confira também o lixo eletrônico.');
+  }catch(e){
+    if(e.code==='auth/user-not-found'){
+      $msg('message','Se o e-mail estiver cadastrado, você receberá uma mensagem de recuperação.');
+    }else{
+      $msg('message','Não foi possível solicitar a recuperação. Verifique o e-mail e a conexão e tente novamente. '+(e.code||''));
+    }
+  }finally{button.disabled=false}
+};
+
 $('show-settings').onclick=()=>user?settings():show('setup');$('open-settings').onclick=settings;
 $('home').onclick=()=>{$('viewer').srcdoc?document.body.classList.add('running'):show('waiting')};
 $('logout').onclick=async()=>{if(!confirm('Sair da conta neste aparelho?'))return;clear();await auth.signOut();show('setup')};
@@ -203,7 +221,7 @@ $('publish-route').onclick=async()=>{try{await importRoute()}catch(e){error(e)}}
 $('route-import').addEventListener('change',async()=>{if(!$('route-import').files?.length)return;try{await importRoute()}catch(e){error(e)}});
 $('try-sync').onclick=()=>{if(user){subscribeContent();subscribeState()}refresh()};
 $('check-update').onclick=async()=>{if(!registration){$msg('settings-msg','A instalação offline exige HTTPS.');return}try{await registration.update();$msg('settings-msg',registration.waiting?'Atualização pronta.':'Verificação concluída.')}catch(e){$msg('settings-msg','Não foi possível consultar o servidor.') }};
-$('test-offline').onclick=async()=>{const c=cachedRoute();const names=await caches.keys().catch(()=>[]);const messages=[c?.html?.length>10000?'✓ Roteiro salvo':'✗ Roteiro ainda não armazenado',names.includes('ny26-shell-gh-v1')?'✓ Estrutura em cache':'✗ App ainda não está em cache',user?'✓ Sessão ativa':'✗ Sem login'];
+$('test-offline').onclick=async()=>{const c=cachedRoute();const names=await caches.keys().catch(()=>[]);const messages=[c?.html?.length>10000?'✓ Roteiro salvo':'✗ Roteiro ainda não armazenado',names.some(name=>name.startsWith('ny26-shell-gh-v'))?'✓ Estrutura em cache':'✗ App ainda não está em cache',user?'✓ Sessão ativa':'✗ Sem login'];
  $msg('settings-msg',messages.join(' · ')+' — faça também o teste real em modo avião nos dois aparelhos.');};
 window.addEventListener('offline',refresh);window.addEventListener('online',()=>{refresh();registration?.update().catch(()=>{})});
 boot();
