@@ -100,7 +100,7 @@ async function installPdfAttachments(doc){
  const buttons=doc.createElement('div');buttons.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:center';
  const backup=doc.createElement('button');backup.type='button';backup.textContent='Salvar backup dos comprovantes';backup.style.cssText='padding:9px;border:1px solid #9cbfd3;border-radius:9px;background:#fff;color:#20526b;cursor:pointer';
  const restore=doc.createElement('button');restore.type='button';restore.textContent='Restaurar backup';restore.style.cssText=backup.style.cssText;
- const input=doc.createElement('input');input.type='file';input.accept='.json,application/json';input.hidden=true;
+ const input=doc.createElement('input');input.type='file';input.accept='.json,.html,text/html,application/json';input.hidden=true;
  buttons.append(backup,restore,input);bannerArea.append(msg,buttons);
  const intro=section.querySelector('.intro');
  if(intro)intro.insertAdjacentElement('afterend',bannerArea);else section.prepend(bannerArea);
@@ -174,9 +174,32 @@ async function installPdfAttachments(doc){
   if(!file)return;
   if(file.size>45*1024*1024){msg.textContent='Backup maior que o limite de 45 MB.';return}
   try{
-   const json=JSON.parse(await file.text());
-   if(json.format!=='NY26-DOCS-BACKUP-1')throw Error('Formato inválido');
-   const incoming=safeDocs(json.docs);
+   const text=await file.text();
+   let raw;
+   if(/\.html?$/i.test(file.name)){
+    // Recupera comprovantes incorporados em versões antigas exportadas.
+    // DOMParser não executa os scripts do HTML importado.
+    const parsed=new docWindow.DOMParser().parseFromString(text,'text/html');
+    raw={};
+    parsed.querySelectorAll('.category[data-category]').forEach(cat=>{
+     const slot=cat.getAttribute('data-category'),items=[];
+     cat.querySelectorAll('.document[data-proof-file]').forEach(node=>{
+      const original=node.querySelector('img[src^="data:"],a.doc-download[href^="data:"]');
+      if(original)items.push({
+       name:node.getAttribute('data-name')||'Comprovante',
+       type:node.getAttribute('data-type')||'application/pdf',
+       size:Number(node.getAttribute('data-size'))||0,
+       data:original.tagName.toLowerCase()==='img'?original.getAttribute('src'):original.getAttribute('href')
+      });
+     });
+     raw[slot]=items;
+    });
+   }else{
+    const json=JSON.parse(text);
+    if(json.format!=='NY26-DOCS-BACKUP-1')throw Error('Formato inválido');
+    raw=json.docs;
+   }
+   const incoming=safeDocs(raw);
    if(!countDocs(incoming))throw Error('Backup sem anexos compatíveis');
    if(!docWindow.confirm('Restaurar '+countDocs(incoming)+' comprovantes deste backup? Os anexos atuais também serão preservados.'))return;
    const current=safeDocs(api.snapshot());
