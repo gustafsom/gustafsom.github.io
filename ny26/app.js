@@ -130,31 +130,55 @@ async function installPdfAttachments(doc){
  }
  function applyLinks(){
   const state=api.snapshot();
-  section.querySelectorAll('.category').forEach(cat=>{
+  section.querySelectorAll('.category[data-category]').forEach(cat=>{
    const slot=cat.getAttribute('data-category'),files=state[slot]||[];
    cat.querySelectorAll('.document[data-proof-file]').forEach((item,i)=>{
-    const link=item.querySelector('a.doc-download');
-    if(link){
-     try{
-      const file=files[i];
-      if(!file||!/^data:application\/pdf;base64,/i.test(file.data))return;
-      link.href=blobUrlFromData(file.data);
-      link.target='_blank';link.rel='noopener noreferrer';link.removeAttribute('download');
-      if(link.textContent!=='↗ Abrir PDF')link.textContent='↗ Abrir PDF';
-      link.setAttribute('aria-label','Abrir comprovante PDF no leitor do celular, sem baixar outro arquivo');
-     }catch(e){
-      link.removeAttribute('href');link.textContent='PDF indisponível';
-      msg.textContent='⚠️ Um PDF não pôde ser aberto. Confira o arquivo de origem ou restaure o backup.';
+    const link=item.querySelector('a.doc-download'),file=files[i];
+    if(link&&file&&/^data:application\/pdf;base64,/i.test(file.data)){
+     // Nao decodificar o PDF ao desenhar a lista. PDFs grandes provocavam
+     // consumo de memoria e travamentos no Android antes de abrir o arquivo.
+     if(!link.hasAttribute('data-ny26-direct')){
+      link.setAttribute('href','#documentos');
+      link.setAttribute('data-ny26-direct','1');
      }
+     if(link.getAttribute('target')!=='_blank')link.setAttribute('target','_blank');
+     link.setAttribute('rel','noopener noreferrer');
+     link.removeAttribute('download');
+     if(link.textContent!=='↗ Abrir PDF')link.textContent='↗ Abrir PDF';
     }
     const del=item.querySelector('button.doc-remove');
     if(del){
-     del.textContent='🗑️ Remover comprovante';
+     // Atribuir textContent somente quando muda: alterações repetidas
+     // causavam loop do MutationObserver e congelavam o celular.
+     if(del.textContent!=='🗑️ Remover comprovante')del.textContent='🗑️ Remover comprovante';
      del.setAttribute('aria-label','Remover comprovante após confirmação');
     }
    });
   });
  }
+ // O Blob somente e criado no clique, dentro da acao do usuario.
+ // A navegacao para o leitor nativo continua sendo a acao padrao do link.
+ doc.addEventListener('click',ev=>{
+  const link=ev.target?.closest?.('a.doc-download');
+  if(!link||!section.contains(link))return;
+  const item=link.closest('.document[data-proof-file]');
+  const cat=item?.closest('.category[data-category]');
+  if(!item||!cat)return;
+  const nodes=Array.from(cat.querySelectorAll('.document[data-proof-file]'));
+  const file=api.snapshot()[cat.getAttribute('data-category')]?.[nodes.indexOf(item)];
+  if(!file||!/^data:application\/pdf;base64,/i.test(file.data)){
+   ev.preventDefault();
+   msg.textContent='⚠️ O arquivo não está disponível. Restaure o backup ou anexe o PDF novamente.';
+   return;
+  }
+  try{
+   link.href=blobUrlFromData(file.data);
+  }catch(e){
+   ev.preventDefault();
+   msg.textContent='⚠️ Não foi possível abrir este PDF. O original continua preservado.';
+   console.warn('NY26 abrir PDF',e);
+  }
+ },true);
  let db,ready=false,writeQueue=Promise.resolve(),saveTimer=0,orphanDocs={};
  function persist(){
   if(!ready||!db)return;
@@ -259,7 +283,9 @@ async function installPdfAttachments(doc){
   const count=countDocs(api.snapshot());
   msg.textContent='✅ '+count+' comprovante(s) preservado(s) no armazenamento privado deste aparelho, mesmo após novas versões. Para outro celular, use Backup/Restaurar.';
   const observer=new docWindow.MutationObserver(records=>{
-   if(records.some(r=>r.target?.closest?.('.proof-items')||r.target?.classList?.contains('proof-items'))){
+   // Apenas insercao/remocao REAL de comprovantes. Ignora alteracoes
+   // nos rotulos e botoes para impedir recursao infinita no Android.
+   if(records.some(r=>r.type==='childList'&&r.target?.classList?.contains('proof-items'))){
     applyLinks();schedulePersist();
    }
   });
