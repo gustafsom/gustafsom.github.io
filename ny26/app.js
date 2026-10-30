@@ -149,10 +149,10 @@ async function installPdfAttachments(doc){
    });
   });
  }
- let db,ready=false,writeQueue=Promise.resolve(),saveTimer=0;
+ let db,ready=false,writeQueue=Promise.resolve(),saveTimer=0,orphanDocs={};
  function persist(){
   if(!ready||!db)return;
-  const snapshot=safeDocs(api.snapshot());
+  const snapshot={...orphanDocs,...safeDocs(api.snapshot())};
   writeQueue=writeQueue.catch(()=>{}).then(()=>docsTransaction(db,'readwrite',key,{version:1,docs:snapshot,updatedAt:Date.now()}))
    .then(()=>{msg.textContent='✅ Comprovantes guardados neste aparelho. Permanecem após atualizar o roteiro. Não são sincronizados com outros aparelhos.'})
    .catch(e=>{msg.textContent='⚠️ Não foi possível salvar os comprovantes neste aparelho. Faça um backup antes de fechar o NY26.';console.warn('NY26 documents',e)});
@@ -164,7 +164,7 @@ async function installPdfAttachments(doc){
  }
  function countDocs(sets){return Object.values(sets).reduce((n,items)=>n+items.length,0)}
  backup.addEventListener('click',()=>{
-  const docs=safeDocs(api.snapshot());
+  const docs={...orphanDocs,...safeDocs(api.snapshot())};
   const archive=JSON.stringify({format:'NY26-DOCS-BACKUP-1',exportedAt:new Date().toISOString(),docs});
   const url=docWindow.URL.createObjectURL(new Blob([archive],{type:'application/json'}));
   const a=doc.createElement('a');a.href=url;a.download='NY26-Comprovantes-Backup.json';doc.body.appendChild(a);a.click();a.remove();
@@ -212,6 +212,9 @@ async function installPdfAttachments(doc){
     }
     current[slot]=previous;
    }
+   // Categorias que nao existem mais na versao atual ficam guardadas.
+   const known=new Set(Object.keys(api.snapshot()));
+   for(const [slot,items] of Object.entries(current))if(!known.has(slot))orphanDocs[slot]=items;
    api.restore(current);applyLinks();persist();
    msg.textContent='✅ Backup restaurado e aguardando gravação local.';
   }catch(e){msg.textContent='Falha ao restaurar o backup: '+e.message}
@@ -239,6 +242,7 @@ async function installPdfAttachments(doc){
    const stored=safeDocs(record.docs),current=safeDocs(api.snapshot());
    // A stored category is authoritative, including explicit removals.
    for(const [slot,items] of Object.entries(current))if(!Object.hasOwn(stored,slot))stored[slot]=items;
+   for(const [slot,items] of Object.entries(stored))if(!Object.hasOwn(current,slot))orphanDocs[slot]=items;
    api.restore(stored);
   }else{
    await docsTransaction(db,'readwrite',key,{version:1,docs:safeDocs(api.snapshot()),updatedAt:Date.now()});
