@@ -63,7 +63,10 @@ function installPdfPreview(doc){
  '#ny26-pdf-overlay button,#ny26-pdf-overlay a{font:700 13px system-ui,sans-serif;border-radius:9px;padding:11px 14px;text-decoration:none}',
  '#ny26-pdf-overlay button{background:#f0f8fc;color:#184966;border:0;cursor:pointer}',
  '#ny26-pdf-overlay a{background:#dceeff;color:#164766}',
- '#ny26-pdf-preview{border:0;flex:1;min-height:0;width:100%;background:#f3f6fa}',
+ '#ny26-pdf-preview{border:0;flex:1;min-height:0;width:100%;background:#f3f6fa;overflow:auto;display:flex;align-items:center;flex-direction:column;gap:14px;padding:16px 8px;box-sizing:border-box;overscroll-behavior:contain}',
+ '#ny26-pdf-preview canvas{display:block;max-width:100%;height:auto;background:#fff;box-shadow:0 2px 15px #0002}',
+ '#ny26-pdf-pager{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:8px;background:#f2f6fa;border-bottom:1px solid #dae2e9}',
+ '#ny26-pdf-page{font:700 13px system-ui,sans-serif;color:#324d5e;min-width:85px;text-align:center}',
  '#ny26-pdf-status{font:12px system-ui,sans-serif;padding:7px 12px;background:#eff5f8;color:#536879}'
  ].join('\n');
  doc.head.appendChild(css);
@@ -76,13 +79,69 @@ function installPdfPreview(doc){
  top.append(close,name,external);
  const status=doc.createElement('div');status.id='ny26-pdf-status';
  status.textContent='Visualização do documento existente, sem baixar outro arquivo.';
- const viewer=doc.createElement('iframe');
- viewer.id='ny26-pdf-preview';viewer.title='Comprovante PDF';viewer.setAttribute('loading','eager');
- overlay.append(top,status,viewer);doc.body.appendChild(overlay);
- let currentURL=null,serial=0,previousScroll='';
+ const pager=doc.createElement('div');pager.id='ny26-pdf-pager';pager.hidden=true;
+ const previous=doc.createElement('button');previous.type='button';previous.textContent='← Anterior';previous.disabled=true;
+ const pageInfo=doc.createElement('span');pageInfo.id='ny26-pdf-page';pageInfo.textContent='Página 1';
+ const next=doc.createElement('button');next.type='button';next.textContent='Próxima →';next.disabled=true;
+ pager.append(previous,pageInfo,next);
+ const viewer=doc.createElement('div');viewer.id='ny26-pdf-preview';viewer.setAttribute('role','document');viewer.setAttribute('aria-label','Páginas do PDF');
+ overlay.append(top,status,pager,viewer);doc.body.appendChild(overlay);
+ let currentURL=null,serial=0,previousScroll='',pdfDoc=null,pdfTask=null,pageNumber=1,renderNumber=0;
+ let pdfLibraryPromise=null;
+ function getPdfJs(){
+  if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
+  if(pdfLibraryPromise)return pdfLibraryPromise;
+  pdfLibraryPromise=new Promise((resolve,reject)=>{
+   const script=document.createElement('script');
+   script.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+   script.async=true;
+   script.onload=()=>window.pdfjsLib?resolve(window.pdfjsLib):reject(Error('Biblioteca PDF não inicializada'));
+   script.onerror=()=>reject(Error('Leitor offline indisponível neste aparelho'));
+   document.head.appendChild(script);
+  }).catch(e=>{pdfLibraryPromise=null;throw e});
+  return pdfLibraryPromise;
+ }
+ async function renderPage(n){
+  if(!pdfDoc)return;
+  const token=serial,renderId=++renderNumber;
+  const page=await pdfDoc.getPage(n);
+  if(token!==serial||renderId!==renderNumber)return;
+  const unit=page.getViewport({scale:1});
+  const width=Math.max(240,viewer.clientWidth-16);
+  const scale=Math.min(2.2,width/unit.width);
+  const viewport=page.getViewport({scale});
+  const ratio=Math.min(2,doc.defaultView.devicePixelRatio||1);
+  const canvas=doc.createElement('canvas');
+  canvas.width=Math.ceil(viewport.width*ratio);
+  canvas.height=Math.ceil(viewport.height*ratio);
+  canvas.style.width=Math.ceil(viewport.width)+'px';
+  canvas.style.height=Math.ceil(viewport.height)+'px';
+  const ctx=canvas.getContext('2d',{alpha:false});
+  if(!ctx)throw Error('Canvas não disponível');
+  viewer.replaceChildren(canvas);
+  const task=page.render({canvasContext:ctx,viewport,transform:ratio!==1?[ratio,0,0,ratio,0,0]:null});
+  try{await task.promise}catch(e){if(e?.name!=='RenderingCancelledException')throw e}
+  if(token!==serial||renderId!==renderNumber)return;
+  pageNumber=n;
+  pageInfo.textContent='Página '+n+' de '+pdfDoc.numPages;
+  previous.disabled=n<=1;next.disabled=n>=pdfDoc.numPages;
+  viewer.scrollTop=0;
+  status.textContent='PDF exibido nesta tela, sem download. Deslize para conferir a página e use Anterior/Próxima para outras páginas.';
+ }
+ previous.addEventListener('click',()=>{if(pdfDoc&&pageNumber>1)renderPage(pageNumber-1).catch(showPreviewError)});
+ next.addEventListener('click',()=>{if(pdfDoc&&pageNumber<pdfDoc.numPages)renderPage(pageNumber+1).catch(showPreviewError)});
+ function showPreviewError(e){
+  console.warn('PDF render',e);
+  pager.hidden=true;
+  status.textContent='A prévia não pôde ser exibida neste aparelho. Use “Abrir no leitor” acima; o documento original está preservado.';
+  viewer.replaceChildren();
+  const hint=doc.createElement('p');hint.style.cssText='padding:16px;text-align:center;font:14px/1.5 system-ui,sans-serif;color:#37516b';hint.textContent='A visualização interna está indisponível. Toque em “↗ Abrir no leitor” no topo para consultar o comprovante sem fazer novo anexo.';
+  viewer.appendChild(hint);
+ }
  function dismiss(){
-  serial++;
-  viewer.removeAttribute('src');
+  serial++;renderNumber++;
+  pdfTask?.destroy().catch(()=>{});pdfTask=null;pdfDoc=null;pageNumber=1;
+  viewer.replaceChildren();pager.hidden=true;
   overlay.hidden=true;external.hidden=true;external.removeAttribute('href');
   doc.body.style.overflow=previousScroll;
   if(currentURL){doc.defaultView.URL.revokeObjectURL(currentURL);currentURL=null}
@@ -143,11 +202,20 @@ function installPdfPreview(doc){
    if(token!==serial)return;
    if(blob.type!=='application/pdf'&&blob.size===0)throw Error('Documento vazio');
    currentURL=doc.defaultView.URL.createObjectURL(new Blob([blob],{type:'application/pdf'}));
-   viewer.src=currentURL+'#toolbar=1';
    external.href=currentURL;external.hidden=false;
-   status.textContent='Este PDF já estava anexado. Se a prévia ficar em branco no iPhone, toque em “Abrir no leitor”. Nenhum novo download é solicitado.';
+   viewer.textContent='Carregando visualização das páginas…';
+   // PDF.js rasteriza para canvas: evita o botão nativo "Abrir", que falha
+   // dentro do iframe srcdoc em alguns navegadores iOS/Android.
+   const lib=await getPdfJs();
+   if(token!==serial)return;
+   lib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+   pdfTask=lib.getDocument({data:new Uint8Array(await blob.arrayBuffer()),useSystemFonts:true});
+   pdfDoc=await pdfTask.promise;
+   if(token!==serial)return;
+   pager.hidden=false;
+   await renderPage(1);
   }catch(e){
-   if(token===serial){status.textContent='Não foi possível pré-visualizar este PDF. Verifique o documento original.';console.warn('PDF preview',e)}
+   if(token===serial)showPreviewError(e);
   }
  },true);
 }
