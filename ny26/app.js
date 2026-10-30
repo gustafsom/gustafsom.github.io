@@ -42,6 +42,9 @@ function sanitizeRouteHtml(source){
  // /ny26/#mala, recursively loading this application inside itself.
  let h=renameChildren(String(source||''));
  h=h.replace(/<script>\s*\/\*\s*NY26 v7[^\n]*\n[\s\S]*?<\/script>/gi,'');
+ // Atualiza orientacoes legadas de exportacao manual que nao se aplicam a PWA.
+ h=h.replace(/Sem comprovante incorporado\. Abra o guia no computador, adicione o arquivo nesta categoria e exporte uma nova cópia\./g,'Nenhum comprovante anexado nesta categoria. Use o botão de adicionar.');
+ h=h.replace(/Ainda não há comprovante incorporado\. No computador, use o botão abaixo, depois exporte o guia atualizado\./g,'Nenhum comprovante anexado. Use Adicionar PDF ou imagem.');
  // Expose the v1.40 document model to its authenticated host, without putting
  // personal files into the public code or Firestore's itinerary collection.
  // Textos legados pediam exportar HTML; a PWA agora grava os anexos no aparelho.
