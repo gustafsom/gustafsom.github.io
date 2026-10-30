@@ -72,9 +72,12 @@ function docsTransaction(db,mode,key,value){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(DOCS_STORE,mode),store=tx.objectStore(DOCS_STORE);
   const request=mode==='readonly'?store.get(key):store.put(value,key);
-  request.onsuccess=()=>resolve(request.result);
+  request.onsuccess=()=>{if(mode==='readonly')resolve(request.result)};
   request.onerror=()=>reject(request.error||Error('Falha na gravação de documentos'));
+  // Confirmar apenas apos o commit da transacao, nao ao concluir o put.
+  tx.oncomplete=()=>{if(mode==='readwrite')resolve(true)};
   tx.onerror=()=>reject(tx.error||Error('Falha na transação'));
+  tx.onabort=()=>reject(tx.error||Error('Gravação interrompida'));
  });
 }
 function safeDocs(sets){
