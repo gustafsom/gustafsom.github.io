@@ -66,6 +66,7 @@ function installPdfPreview(doc){
  '#ny26-pdf-preview{border:0;flex:1;min-height:0;width:100%;background:#f3f6fa;overflow:auto;display:flex;align-items:center;flex-direction:column;gap:14px;padding:16px 8px;box-sizing:border-box;overscroll-behavior:contain}',
  '#ny26-pdf-preview canvas{display:block;max-width:100%;height:auto;background:#fff;box-shadow:0 2px 15px #0002}',
  '#ny26-pdf-pager{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:8px;background:#f2f6fa;border-bottom:1px solid #dae2e9}',
+ '#ny26-pdf-pager[hidden]{display:none!important}',
  '#ny26-pdf-page{font:700 13px system-ui,sans-serif;color:#324d5e;min-width:85px;text-align:center}',
  '#ny26-pdf-status{font:12px system-ui,sans-serif;padding:7px 12px;background:#eff5f8;color:#536879}'
  ].join('\n');
