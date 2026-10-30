@@ -1,5 +1,5 @@
 /* Somente a estrutura é pública; dados privados ficam em Firebase/armazenamento local. */
-const CACHE='ny26-shell-gh-v9';
+const CACHE='ny26-shell-gh-v10';
 const SHELL=['./','./index.html','./app.js','./config.js','./manifest.webmanifest','./icon.svg'];
 const LIBS=['https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js','https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js','https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'];
 self.addEventListener('install',ev=>ev.waitUntil((async()=>{
