@@ -45,6 +45,98 @@ function sanitizeRouteHtml(source){
  h=h.replace(/<head([^>]*)>/i,'<head$1><base href="about:srcdoc">');
  return h;
 }
+
+function installPdfPreview(doc){
+ const section=doc.getElementById('documentos');
+ if(!section||doc.getElementById('ny26-pdf-preview-style'))return;
+ const css=doc.createElement('style');
+ css.id='ny26-pdf-preview-style';
+ css.textContent=[
+ '#documentos .document .docactions{margin:14px 0 0;display:flex;flex-wrap:wrap;gap:12px}',
+ '#documentos .document .docactions .doc-download{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:10px 17px;border-radius:10px;background:#146a9a;color:#fff;border:1px solid #146a9a;text-decoration:none;font-size:14px;font-weight:800;touch-action:manipulation}',
+ '#documentos .document .doc-remove{display:block!important;min-height:46px;margin:22px 0 4px auto;padding:10px 15px;border:1px solid #e7ada9;border-radius:10px;background:#fff1f0;color:#9c3333;font-size:13px;font-weight:700;touch-action:manipulation}',
+ '#documentos .document .doc-note{font-size:12px;line-height:1.45}',
+ '#ny26-pdf-overlay[hidden]{display:none!important}',
+ '#ny26-pdf-overlay{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;flex-direction:column!important;background:#fff!important;color:#17324a!important;box-sizing:border-box!important}',
+ '#ny26-pdf-top{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:12px;background:#102e4a;color:#fff;font:700 14px system-ui,sans-serif}',
+ '#ny26-pdf-name{flex:1;min-width:120px;overflow-wrap:anywhere}',
+ '#ny26-pdf-overlay button,#ny26-pdf-overlay a{font:700 13px system-ui,sans-serif;border-radius:9px;padding:11px 14px;text-decoration:none}',
+ '#ny26-pdf-overlay button{background:#f0f8fc;color:#184966;border:0;cursor:pointer}',
+ '#ny26-pdf-overlay a{background:#dceeff;color:#164766}',
+ '#ny26-pdf-preview{border:0;flex:1;min-height:0;width:100%;background:#f3f6fa}',
+ '#ny26-pdf-status{font:12px system-ui,sans-serif;padding:7px 12px;background:#eff5f8;color:#536879}'
+ ].join('\n');
+ doc.head.appendChild(css);
+ const overlay=doc.createElement('section');
+ overlay.id='ny26-pdf-overlay';overlay.hidden=true;overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','Visualizador de comprovante PDF');
+ const top=doc.createElement('div');top.id='ny26-pdf-top';
+ const close=doc.createElement('button');close.type='button';close.textContent='← Fechar PDF';
+ const name=doc.createElement('span');name.id='ny26-pdf-name';
+ const external=doc.createElement('a');external.id='ny26-pdf-newtab';external.textContent='↗ Abrir no leitor';external.target='_blank';external.rel='noopener';external.hidden=true;
+ top.append(close,name,external);
+ const status=doc.createElement('div');status.id='ny26-pdf-status';
+ status.textContent='Visualização do documento existente, sem baixar outro arquivo.';
+ const viewer=doc.createElement('iframe');
+ viewer.id='ny26-pdf-preview';viewer.title='Comprovante PDF';viewer.setAttribute('loading','eager');
+ overlay.append(top,status,viewer);doc.body.appendChild(overlay);
+ let currentURL=null,serial=0,previousScroll='';
+ function dismiss(){
+  serial++;
+  viewer.removeAttribute('src');
+  overlay.hidden=true;external.hidden=true;external.removeAttribute('href');
+  doc.body.style.overflow=previousScroll;
+  if(currentURL){doc.defaultView.URL.revokeObjectURL(currentURL);currentURL=null}
+ }
+ close.addEventListener('click',dismiss);
+ doc.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!overlay.hidden)dismiss()});
+ function labelLinks(){
+  section.querySelectorAll('a.doc-download').forEach(link=>{
+   link.removeAttribute('download');
+   link.removeAttribute('target');
+   link.textContent='👁️ Visualizar PDF';
+   link.setAttribute('aria-label','Visualizar PDF sem baixar');
+  });
+  section.querySelectorAll('button.doc-remove').forEach(button=>{
+   button.textContent='🗑️ Remover comprovante';
+   button.setAttribute('aria-label','Remover comprovante (necessita confirmação)');
+  });
+ }
+ labelLinks();
+ const observer=new doc.defaultView.MutationObserver(records=>{
+  if(records.some(r=>r.addedNodes.length&&Array.from(r.addedNodes).some(n=>n.nodeType===1&&n.closest?.('.proof-items')))){
+   labelLinks();
+  }
+ });
+ observer.observe(section,{subtree:true,childList:true});
+ doc.addEventListener('click',async ev=>{
+  const link=ev.target?.closest?.('a.doc-download');
+  if(!link||!section.contains(link))return;
+  ev.preventDefault();ev.stopPropagation();
+  const data=link.getAttribute('href')||'';
+  if(!/^data:application\/pdf(?:;[^,]*)?,/i.test(data)){status.textContent='Este anexo não contém um PDF incorporado válido.';return}
+  const documentBox=link.closest('.document');
+  const title=documentBox?.getAttribute('data-name')||'Comprovante PDF';
+  dismiss();
+  const token=++serial;
+  previousScroll=doc.body.style.overflow;
+  doc.body.style.overflow='hidden';overlay.hidden=false;
+  name.textContent=title;status.textContent='Preparando o arquivo incorporado para visualização…';
+  try{
+   // Converte o PDF já embutido em Blob. Não cria um novo arquivo salvo no celular.
+   const response=await doc.defaultView.fetch(data);
+   const blob=await response.blob();
+   if(token!==serial)return;
+   if(blob.type!=='application/pdf'&&blob.size===0)throw Error('Documento vazio');
+   currentURL=doc.defaultView.URL.createObjectURL(new Blob([blob],{type:'application/pdf'}));
+   viewer.src=currentURL+'#toolbar=1';
+   external.href=currentURL;external.hidden=false;
+   status.textContent='Este PDF já estava anexado. Se a prévia ficar em branco no iPhone, toque em “Abrir no leitor”. Nenhum novo download é solicitado.';
+  }catch(e){
+   if(token===serial){status.textContent='Não foi possível pré-visualizar este PDF. Verifique o documento original.';console.warn('PDF preview',e)}
+  }
+ },true);
+}
+
 function openFrame(html){
  for(const domain of ['actions','packing'])read(domain);
  const frame=$('viewer'),safe=sanitizeRouteHtml(html);
@@ -61,6 +153,7 @@ function openFrame(html){
    return;
   }
   frameReady=true;
+  try{installPdfPreview(doc)}catch(e){console.warn('Visualizador de PDF:',e)}
   // A area Fotos do local aceita imagens; comprovantes PDF ficam em Docs.
   // Sao incorporados ao HTML local, nao sincronizados automaticamente entre contas.
   const docsSection=doc.getElementById('documentos');
