@@ -108,6 +108,21 @@ function installPdfPreview(doc){
   }
  });
  observer.observe(section,{subtree:true,childList:true});
+ // O HTML exportado precisa permanecer autonomo: nao inclui o codigo da PWA.
+ // Restauramos temporariamente os links originais durante a exportacao.
+ const exportButton=doc.getElementById('save');
+ exportButton?.addEventListener('click',()=>{
+  section.querySelectorAll('a.doc-download').forEach(link=>{
+   link.setAttribute('download',link.closest('.document')?.getAttribute('data-name')||'comprovante.pdf');
+   link.setAttribute('target','_blank');
+   link.textContent='↗ Abrir / salvar PDF';
+  });
+  css.remove();overlay.remove();
+  doc.defaultView.setTimeout(()=>{
+   doc.head.appendChild(css);doc.body.appendChild(overlay);
+   labelLinks();
+  },0);
+ },true);
  doc.addEventListener('click',async ev=>{
   const link=ev.target?.closest?.('a.doc-download');
   if(!link||!section.contains(link))return;
