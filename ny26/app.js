@@ -239,6 +239,8 @@ async function installPdfAttachments(doc){
   });
   docWindow.setTimeout(applyLinks,0);
  },true);
+ // Ativar abertura nativa imediatamente, mesmo antes do IndexedDB carregar.
+ applyLinks();
  try{
   db=await openDocsDB();
   if($('viewer').contentDocument!==doc)return;
@@ -264,8 +266,9 @@ async function installPdfAttachments(doc){
   observer.observe(section,{childList:true,subtree:true});
   docWindow.addEventListener('pagehide',()=>{
    docWindow.clearTimeout(saveTimer);
-   for(const url of pdfUrls.values())docWindow.URL.revokeObjectURL(url);
-   pdfUrls.clear();db?.close();
+   // Nao revogar Blob URLs durante a abertura do leitor nativo no iOS:
+   // a aba nova ainda pode estar consumindo o PDF.
+   db?.close();
   },{once:true});
  }catch(e){
   msg.textContent='⚠️ Armazenamento persistente indisponível neste aparelho. Exporte um backup antes de atualizar o NY26.';
