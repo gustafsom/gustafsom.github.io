@@ -265,6 +265,10 @@ async function installPdfAttachments(doc){
  },true);
  // Ativar abertura nativa imediatamente, mesmo antes do IndexedDB carregar.
  applyLinks();
+ // A escolha de arquivo pode ocorrer enquanto o IndexedDB abre. Salvar a
+ // fotografia inicial evita perder uploads feitos durante a inicializacao.
+ const docsAtStart=safeDocs(api.snapshot());
+ let uploadedDuringOpen=false;
  try{
   db=await openDocsDB();
   if($('viewer').contentDocument!==doc)return;
@@ -272,14 +276,25 @@ async function installPdfAttachments(doc){
   if($('viewer').contentDocument!==doc)return;
   if(record?.docs){
    const stored=safeDocs(record.docs),current=safeDocs(api.snapshot());
-   // A stored category is authoritative, including explicit removals.
-   for(const [slot,items] of Object.entries(current))if(!Object.hasOwn(stored,slot))stored[slot]=items;
+   // Estado persistido e autoritativo, mas sem sobrescrever PDFs selecionados
+   // enquanto o banco inicializava: mesclar os anexos que surgiram nesse intervalo.
+   for(const [slot,items] of Object.entries(current)){
+    if(!Object.hasOwn(stored,slot))stored[slot]=items;
+    const initial=docsAtStart[slot]||[];
+    for(const item of items){
+     if(!initial.some(x=>x.data===item.data&&x.name===item.name)
+       &&!stored[slot].some(x=>x.data===item.data&&x.name===item.name)){
+      stored[slot].push(item);uploadedDuringOpen=true;
+     }
+    }
+   }
    for(const [slot,items] of Object.entries(stored))if(!Object.hasOwn(current,slot))orphanDocs[slot]=items;
    api.restore(stored);
   }else{
    await docsTransaction(db,'readwrite',key,{version:1,docs:safeDocs(api.snapshot()),updatedAt:Date.now()});
   }
   applyLinks();ready=true;
+  if(uploadedDuringOpen)persist();
   const count=countDocs(api.snapshot());
   msg.textContent='✅ '+count+' comprovante(s) preservado(s) no armazenamento privado deste aparelho, mesmo após novas versões. Para outro celular, use Backup/Restaurar.';
   const observer=new docWindow.MutationObserver(records=>{
