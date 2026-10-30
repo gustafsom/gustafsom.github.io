@@ -1,7 +1,7 @@
 /* Somente a estrutura é pública; dados privados ficam em Firebase/armazenamento local. */
-const CACHE='ny26-shell-gh-v8';
+const CACHE='ny26-shell-gh-v9';
 const SHELL=['./','./index.html','./app.js','./config.js','./manifest.webmanifest','./icon.svg'];
-const LIBS=['https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js','https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js','https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js','https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js','https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'];
+const LIBS=['https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js','https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js','https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'];
 self.addEventListener('install',ev=>ev.waitUntil((async()=>{
  const c=await caches.open(CACHE);await c.addAll(SHELL);
  // SDK terceirizado: guarda resposta opaque; se alguma biblioteca falhar,
