@@ -44,6 +44,8 @@ function sanitizeRouteHtml(source){
  h=h.replace(/<script>\s*\/\*\s*NY26 v7[^\n]*\n[\s\S]*?<\/script>/gi,'');
  // Expose the v1.40 document model to its authenticated host, without putting
  // personal files into the public code or Firestore's itinerary collection.
+ // Textos legados pediam exportar HTML; a PWA agora grava os anexos no aparelho.
+ h=h.replace(/Clique em "Salvar HTML atualizado" e transfira o novo arquivo para os celulares\./g,'O comprovante será salvo neste aparelho.');
  const marker="try{\n document.body.classList.add('js-ready');readStatic();refreshAll();loadDone();";
  if(h.includes(marker)&&!h.includes('window.NY26Documents=')){
   const api="window.NY26Documents={snapshot:function(){return docs;},restore:function(saved){Object.keys(docs).forEach(function(slot){if(Array.isArray(saved[slot]))docs[slot]=saved[slot];});refreshAll();}};\n";
@@ -99,7 +101,7 @@ async function installPdfAttachments(doc){
  msg.textContent='📎 Comprovantes privados: carregando armazenamento do aparelho…';
  const buttons=doc.createElement('div');buttons.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:center';
  const backup=doc.createElement('button');backup.type='button';backup.textContent='Salvar backup dos comprovantes';backup.style.cssText='padding:9px;border:1px solid #9cbfd3;border-radius:9px;background:#fff;color:#20526b;cursor:pointer';
- const restore=doc.createElement('button');restore.type='button';restore.textContent='Restaurar backup';restore.style.cssText=backup.style.cssText;
+ const restore=doc.createElement('button');restore.type='button';restore.textContent='Restaurar backup (JSON ou HTML)';restore.style.cssText=backup.style.cssText;
  const input=doc.createElement('input');input.type='file';input.accept='.json,.html,text/html,application/json';input.hidden=true;
  buttons.append(backup,restore,input);bannerArea.append(msg,buttons);
  const intro=section.querySelector('.intro');
@@ -286,7 +288,7 @@ function openFrame(html){
     const help=doc.createElement('p');
     help.id='ny26-pdf-info';
     help.style.cssText='background:#fff3d7;border:1px solid #e8cb89;border-radius:9px;padding:12px;font:13px/1.45 system-ui,sans-serif;color:#5d451f;margin:12px 0';
-    help.textContent='📎 PDFs: toque em “Adicionar PDF ou imagem” na categoria correspondente. Atenção: o PDF fica somente nesta cópia do roteiro; o indicador “Sincronizado” se refere às listas, não aos comprovantes. Para compartilhar, salve o HTML atualizado e importe-o novamente pelo administrador. PDFs grandes podem exceder o limite de importação; mantenha também os originais salvos no iPhone e Android.';
+    help.textContent='📎 PDF: toque em “Adicionar PDF ou imagem” e depois em “Abrir PDF” para usar o leitor do celular. Os comprovantes ficam salvos neste aparelho, independentemente das atualizações do roteiro. Eles ainda não são sincronizados automaticamente com outro celular. Use Salvar backup/Restaurar backup e conserve os originais no aplicativo Arquivos.';
     const header=docsSection.querySelector('.intro');
     if(header)header.insertAdjacentElement('afterend',help);
     else docsSection.prepend(help);
