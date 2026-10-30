@@ -42,183 +42,201 @@ function sanitizeRouteHtml(source){
  // /ny26/#mala, recursively loading this application inside itself.
  let h=renameChildren(String(source||''));
  h=h.replace(/<script>\s*\/\*\s*NY26 v7[^\n]*\n[\s\S]*?<\/script>/gi,'');
+ // Expose the v1.40 document model to its authenticated host, without putting
+ // personal files into the public code or Firestore's itinerary collection.
+ const marker="try{\n document.body.classList.add('js-ready');readStatic();refreshAll();loadDone();";
+ if(h.includes(marker)&&!h.includes('window.NY26Documents=')){
+  const api="window.NY26Documents={snapshot:function(){return docs;},restore:function(saved){Object.keys(docs).forEach(function(slot){if(Array.isArray(saved[slot]))docs[slot]=saved[slot];});refreshAll();}};\n";
+  h=h.replace(marker,api+marker);
+ }
  h=h.replace(/<head([^>]*)>/i,'<head$1><base href="about:srcdoc">');
  return h;
 }
 
-function installPdfPreview(doc){
- const section=doc.getElementById('documentos');
- if(!section||doc.getElementById('ny26-pdf-preview-style'))return;
- const css=doc.createElement('style');
- css.id='ny26-pdf-preview-style';
- css.textContent=[
- '#documentos .document .docactions{margin:14px 0 0;display:flex;flex-wrap:wrap;gap:12px}',
- '#documentos .document .docactions .doc-download{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:10px 17px;border-radius:10px;background:#146a9a;color:#fff;border:1px solid #146a9a;text-decoration:none;font-size:14px;font-weight:800;touch-action:manipulation}',
- '#documentos .document .doc-remove{display:block!important;min-height:46px;margin:22px 0 4px auto;padding:10px 15px;border:1px solid #e7ada9;border-radius:10px;background:#fff1f0;color:#9c3333;font-size:13px;font-weight:700;touch-action:manipulation}',
- '#documentos .document .doc-note{font-size:12px;line-height:1.45}',
- '#ny26-pdf-overlay[hidden]{display:none!important}',
- '#ny26-pdf-overlay{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;flex-direction:column!important;background:#fff!important;color:#17324a!important;box-sizing:border-box!important}',
- '#ny26-pdf-top{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:12px;background:#102e4a;color:#fff;font:700 14px system-ui,sans-serif}',
- '#ny26-pdf-name{flex:1;min-width:120px;overflow-wrap:anywhere}',
- '#ny26-pdf-overlay button,#ny26-pdf-overlay a{font:700 13px system-ui,sans-serif;border-radius:9px;padding:11px 14px;text-decoration:none}',
- '#ny26-pdf-overlay button{background:#f0f8fc;color:#184966;border:0;cursor:pointer}',
- '#ny26-pdf-overlay a{background:#dceeff;color:#164766}',
- '#ny26-pdf-preview{border:0;flex:1;min-height:0;width:100%;background:#f3f6fa;overflow:auto;display:flex;align-items:center;flex-direction:column;gap:14px;padding:16px 8px;box-sizing:border-box;overscroll-behavior:contain}',
- '#ny26-pdf-preview canvas{display:block;max-width:100%;height:auto;background:#fff;box-shadow:0 2px 15px #0002}',
- '#ny26-pdf-pager{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:8px;background:#f2f6fa;border-bottom:1px solid #dae2e9}',
- '#ny26-pdf-pager[hidden]{display:none!important}',
- '#ny26-pdf-page{font:700 13px system-ui,sans-serif;color:#324d5e;min-width:85px;text-align:center}',
- '#ny26-pdf-status{font:12px system-ui,sans-serif;padding:7px 12px;background:#eff5f8;color:#536879}'
- ].join('\n');
- doc.head.appendChild(css);
- const overlay=doc.createElement('section');
- overlay.id='ny26-pdf-overlay';overlay.hidden=true;overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','Visualizador de comprovante PDF');
- const top=doc.createElement('div');top.id='ny26-pdf-top';
- const close=doc.createElement('button');close.type='button';close.textContent='← Fechar PDF';
- const name=doc.createElement('span');name.id='ny26-pdf-name';
- const external=doc.createElement('a');external.id='ny26-pdf-newtab';external.textContent='↗ Abrir no leitor';external.target='_blank';external.rel='noopener';external.hidden=true;
- top.append(close,name,external);
- const status=doc.createElement('div');status.id='ny26-pdf-status';
- status.textContent='Visualização do documento existente, sem baixar outro arquivo.';
- const pager=doc.createElement('div');pager.id='ny26-pdf-pager';pager.hidden=true;
- const previous=doc.createElement('button');previous.type='button';previous.textContent='← Anterior';previous.disabled=true;
- const pageInfo=doc.createElement('span');pageInfo.id='ny26-pdf-page';pageInfo.textContent='Página 1';
- const next=doc.createElement('button');next.type='button';next.textContent='Próxima →';next.disabled=true;
- pager.append(previous,pageInfo,next);
- const viewer=doc.createElement('div');viewer.id='ny26-pdf-preview';viewer.setAttribute('role','document');viewer.setAttribute('aria-label','Páginas do PDF');
- overlay.append(top,status,pager,viewer);doc.body.appendChild(overlay);
- let currentURL=null,serial=0,previousScroll='',pdfDoc=null,pdfTask=null,pageNumber=1,renderNumber=0;
- let pdfLibraryPromise=null;
- function getPdfJs(){
-  if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
-  if(pdfLibraryPromise)return pdfLibraryPromise;
-  pdfLibraryPromise=new Promise((resolve,reject)=>{
-   const script=document.createElement('script');
-   script.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-   script.async=true;
-   script.onload=()=>window.pdfjsLib?resolve(window.pdfjsLib):reject(Error('Biblioteca PDF não inicializada'));
-   script.onerror=()=>reject(Error('Leitor offline indisponível neste aparelho'));
-   document.head.appendChild(script);
-  }).catch(e=>{pdfLibraryPromise=null;throw e});
-  return pdfLibraryPromise;
- }
- async function renderPage(n){
-  if(!pdfDoc)return;
-  const token=serial,renderId=++renderNumber;
-  const page=await pdfDoc.getPage(n);
-  if(token!==serial||renderId!==renderNumber)return;
-  const unit=page.getViewport({scale:1});
-  const width=Math.max(240,viewer.clientWidth-16);
-  const scale=Math.min(2.2,width/unit.width);
-  const viewport=page.getViewport({scale});
-  const ratio=Math.min(2,doc.defaultView.devicePixelRatio||1);
-  const canvas=doc.createElement('canvas');
-  canvas.width=Math.ceil(viewport.width*ratio);
-  canvas.height=Math.ceil(viewport.height*ratio);
-  canvas.style.width=Math.ceil(viewport.width)+'px';
-  canvas.style.height=Math.ceil(viewport.height)+'px';
-  const ctx=canvas.getContext('2d',{alpha:false});
-  if(!ctx)throw Error('Canvas não disponível');
-  viewer.replaceChildren(canvas);
-  const task=page.render({canvasContext:ctx,viewport,transform:ratio!==1?[ratio,0,0,ratio,0,0]:null});
-  try{await task.promise}catch(e){if(e?.name!=='RenderingCancelledException')throw e}
-  if(token!==serial||renderId!==renderNumber)return;
-  pageNumber=n;
-  pageInfo.textContent='Página '+n+' de '+pdfDoc.numPages;
-  previous.disabled=n<=1;next.disabled=n>=pdfDoc.numPages;
-  viewer.scrollTop=0;
-  status.textContent='PDF exibido nesta tela, sem download. Deslize para conferir a página e use Anterior/Próxima para outras páginas.';
- }
- previous.addEventListener('click',()=>{if(pdfDoc&&pageNumber>1)renderPage(pageNumber-1).catch(showPreviewError)});
- next.addEventListener('click',()=>{if(pdfDoc&&pageNumber<pdfDoc.numPages)renderPage(pageNumber+1).catch(showPreviewError)});
- function showPreviewError(e){
-  console.warn('PDF render',e);
-  pager.hidden=true;
-  status.textContent='A prévia não pôde ser exibida neste aparelho. Use “Abrir no leitor” acima; o documento original está preservado.';
-  viewer.replaceChildren();
-  const hint=doc.createElement('p');hint.style.cssText='padding:16px;text-align:center;font:14px/1.5 system-ui,sans-serif;color:#37516b';hint.textContent='A visualização interna está indisponível. Toque em “↗ Abrir no leitor” no topo para consultar o comprovante sem fazer novo anexo.';
-  viewer.appendChild(hint);
- }
- function dismiss(){
-  serial++;renderNumber++;
-  pdfTask?.destroy().catch(()=>{});pdfTask=null;pdfDoc=null;pageNumber=1;
-  viewer.replaceChildren();pager.hidden=true;
-  overlay.hidden=true;external.hidden=true;external.removeAttribute('href');
-  doc.body.style.overflow=previousScroll;
-  if(currentURL){doc.defaultView.URL.revokeObjectURL(currentURL);currentURL=null}
- }
- close.addEventListener('click',dismiss);
- doc.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!overlay.hidden)dismiss()});
- function labelLinks(){
-  section.querySelectorAll('a.doc-download').forEach(link=>{
-   link.removeAttribute('download');
-   link.removeAttribute('target');
-   link.textContent='👁️ Visualizar PDF';
-   link.setAttribute('aria-label','Visualizar PDF sem baixar');
-  });
-  section.querySelectorAll('button.doc-remove').forEach(button=>{
-   button.textContent='🗑️ Remover comprovante';
-   button.setAttribute('aria-label','Remover comprovante (necessita confirmação)');
-  });
- }
- labelLinks();
- const observer=new doc.defaultView.MutationObserver(records=>{
-  if(records.some(r=>r.addedNodes.length&&Array.from(r.addedNodes).some(n=>n.nodeType===1&&n.closest?.('.proof-items')))){
-   labelLinks();
-  }
+
+// Attachments are private to the authenticated user's browser. This IndexedDB
+// record is independent from the remotely replaced itinerary HTML.
+const DOCS_DB='ny26-private-attachments-v1',DOCS_STORE='snapshots';
+function openDocsDB(){
+ return new Promise((resolve,reject)=>{
+  if(!window.indexedDB){reject(Error('IndexedDB indisponível'));return}
+  const request=indexedDB.open(DOCS_DB,1);
+  request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(DOCS_STORE))request.result.createObjectStore(DOCS_STORE)};
+  request.onsuccess=()=>resolve(request.result);
+  request.onerror=()=>reject(request.error||Error('Falha no armazenamento privado'));
  });
- observer.observe(section,{subtree:true,childList:true});
- // O HTML exportado precisa permanecer autonomo: nao inclui o codigo da PWA.
- // Restauramos temporariamente os links originais durante a exportacao.
- const exportButton=doc.getElementById('save');
- exportButton?.addEventListener('click',()=>{
-  section.querySelectorAll('a.doc-download').forEach(link=>{
-   link.setAttribute('download',link.closest('.document')?.getAttribute('data-name')||'comprovante.pdf');
-   link.setAttribute('target','_blank');
-   link.textContent='↗ Abrir / salvar PDF';
+}
+function docsTransaction(db,mode,key,value){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(DOCS_STORE,mode),store=tx.objectStore(DOCS_STORE);
+  const request=mode==='readonly'?store.get(key):store.put(value,key);
+  request.onsuccess=()=>resolve(request.result);
+  request.onerror=()=>reject(request.error||Error('Falha na gravação de documentos'));
+  tx.onerror=()=>reject(tx.error||Error('Falha na transação'));
+ });
+}
+function safeDocs(sets){
+ const out={};
+ if(!sets||typeof sets!=='object'||Array.isArray(sets))return out;
+ for(const [slot,items] of Object.entries(sets)){
+  if(!/^[a-z0-9_-]{1,90}$/i.test(slot)||!Array.isArray(items))continue;
+  out[slot]=items.filter(it=>it&&typeof it==='object'&&typeof it.name==='string'&&typeof it.data==='string'
+   &&/^(data:application\/pdf;base64,|data:image\/(?:png|jpeg|webp);base64,)/i.test(it.data)
+   &&it.data.length<=12*1024*1024).slice(0,30)
+   .map(it=>({name:it.name.slice(0,200),type:String(it.type||'application/pdf').slice(0,60),
+    size:Number(it.size)||0,data:it.data}));
+ }
+ return out;
+}
+async function installPdfAttachments(doc){
+ const section=doc.getElementById('documentos'),api=doc.defaultView?.NY26Documents;
+ if(!section||!api||typeof api.snapshot!=='function'||typeof api.restore!=='function')return;
+ const docWindow=doc.defaultView,key=TRIP+':'+user.uid;
+ const bannerArea=doc.createElement('div');
+ bannerArea.id='ny26-docs-persistence';
+ bannerArea.style.cssText='margin:12px 0;padding:12px;border:1px solid #b7d4e4;border-radius:10px;background:#eaf5fa;font:12px/1.5 system-ui,sans-serif;color:#20465d';
+ const msg=doc.createElement('p');msg.style.margin='0 0 8px';
+ msg.textContent='📎 Comprovantes privados: carregando armazenamento do aparelho…';
+ const buttons=doc.createElement('div');buttons.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:center';
+ const backup=doc.createElement('button');backup.type='button';backup.textContent='Salvar backup dos comprovantes';backup.style.cssText='padding:9px;border:1px solid #9cbfd3;border-radius:9px;background:#fff;color:#20526b;cursor:pointer';
+ const restore=doc.createElement('button');restore.type='button';restore.textContent='Restaurar backup';restore.style.cssText=backup.style.cssText;
+ const input=doc.createElement('input');input.type='file';input.accept='.json,application/json';input.hidden=true;
+ buttons.append(backup,restore,input);bannerArea.append(msg,buttons);
+ const intro=section.querySelector('.intro');
+ if(intro)intro.insertAdjacentElement('afterend',bannerArea);else section.prepend(bannerArea);
+ const style=doc.createElement('style');style.id='ny26-pdf-direct-style';
+ style.textContent='#documentos .document .docactions{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0}'+
+ '#documentos a.doc-download{display:inline-flex;align-items:center;justify-content:center;min-height:46px;border-radius:10px;padding:10px 16px;background:#126c96;color:#fff!important;text-decoration:none;font-weight:800;font-size:14px;touch-action:manipulation}'+
+ '#documentos .document .doc-remove{display:block!important;min-height:46px;margin:22px 0 4px auto;padding:11px 16px;background:#fff2f1;border:1px solid #e7a9a5;border-radius:10px;color:#933333;font-weight:750;font-size:13px;touch-action:manipulation}';
+ doc.head.appendChild(style);
+ const pdfUrls=new Map();
+ function blobUrlFromData(data){
+  if(pdfUrls.has(data))return pdfUrls.get(data);
+  const comma=data.indexOf(',');
+  if(comma<0)throw Error('PDF sem dados');
+  const encoded=data.slice(comma+1),bin=docWindow.atob(encoded);
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  const url=docWindow.URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+  pdfUrls.set(data,url);return url;
+ }
+ function applyLinks(){
+  const state=api.snapshot();
+  section.querySelectorAll('.category').forEach(cat=>{
+   const slot=cat.getAttribute('data-category'),files=state[slot]||[];
+   cat.querySelectorAll('.document[data-proof-file]').forEach((item,i)=>{
+    const link=item.querySelector('a.doc-download');
+    if(link){
+     try{
+      const file=files[i];
+      if(!file||!/^data:application\/pdf;base64,/i.test(file.data))return;
+      link.href=blobUrlFromData(file.data);
+      link.target='_blank';link.rel='noopener noreferrer';link.removeAttribute('download');
+      if(link.textContent!=='↗ Abrir PDF')link.textContent='↗ Abrir PDF';
+      link.setAttribute('aria-label','Abrir comprovante PDF no leitor do celular, sem baixar outro arquivo');
+     }catch(e){
+      link.removeAttribute('href');link.textContent='PDF indisponível';
+      msg.textContent='⚠️ Um PDF não pôde ser aberto. Confira o arquivo de origem ou restaure o backup.';
+     }
+    }
+    const del=item.querySelector('button.doc-remove');
+    if(del){
+     del.textContent='🗑️ Remover comprovante';
+     del.setAttribute('aria-label','Remover comprovante após confirmação');
+    }
+   });
   });
-  css.remove();overlay.remove();
-  doc.defaultView.setTimeout(()=>{
-   doc.head.appendChild(css);doc.body.appendChild(overlay);
-   labelLinks();
-  },0);
- },true);
- doc.addEventListener('click',async ev=>{
-  const link=ev.target?.closest?.('a.doc-download');
-  if(!link||!section.contains(link))return;
-  ev.preventDefault();ev.stopPropagation();
-  const data=link.getAttribute('href')||'';
-  if(!/^data:application\/pdf(?:;[^,]*)?,/i.test(data)){status.textContent='Este anexo não contém um PDF incorporado válido.';return}
-  const documentBox=link.closest('.document');
-  const title=documentBox?.getAttribute('data-name')||'Comprovante PDF';
-  dismiss();
-  const token=++serial;
-  previousScroll=doc.body.style.overflow;
-  doc.body.style.overflow='hidden';overlay.hidden=false;
-  name.textContent=title;status.textContent='Preparando o arquivo incorporado para visualização…';
+ }
+ let db,ready=false,writeQueue=Promise.resolve(),saveTimer=0;
+ function persist(){
+  if(!ready||!db)return;
+  const snapshot=safeDocs(api.snapshot());
+  writeQueue=writeQueue.catch(()=>{}).then(()=>docsTransaction(db,'readwrite',key,{version:1,docs:snapshot,updatedAt:Date.now()}))
+   .then(()=>{msg.textContent='✅ Comprovantes guardados neste aparelho. Permanecem após atualizar o roteiro. Não são sincronizados com outros aparelhos.'})
+   .catch(e=>{msg.textContent='⚠️ Não foi possível salvar os comprovantes neste aparelho. Faça um backup antes de fechar o NY26.';console.warn('NY26 documents',e)});
+ }
+ function schedulePersist(){
+  if(!ready)return;
+  docWindow.clearTimeout(saveTimer);
+  saveTimer=docWindow.setTimeout(()=>{applyLinks();persist()},120);
+ }
+ function countDocs(sets){return Object.values(sets).reduce((n,items)=>n+items.length,0)}
+ backup.addEventListener('click',()=>{
+  const docs=safeDocs(api.snapshot());
+  const archive=JSON.stringify({format:'NY26-DOCS-BACKUP-1',exportedAt:new Date().toISOString(),docs});
+  const url=docWindow.URL.createObjectURL(new Blob([archive],{type:'application/json'}));
+  const a=doc.createElement('a');a.href=url;a.download='NY26-Comprovantes-Backup.json';doc.body.appendChild(a);a.click();a.remove();
+  docWindow.setTimeout(()=>docWindow.URL.revokeObjectURL(url),60000);
+ });
+ restore.addEventListener('click',()=>input.click());
+ input.addEventListener('change',async()=>{
+  const file=input.files?.[0];input.value='';
+  if(!file)return;
+  if(file.size>45*1024*1024){msg.textContent='Backup maior que o limite de 45 MB.';return}
   try{
-   // Converte o PDF já embutido em Blob. Não cria um novo arquivo salvo no celular.
-   const response=await doc.defaultView.fetch(data);
-   const blob=await response.blob();
-   if(token!==serial)return;
-   if(blob.type!=='application/pdf'&&blob.size===0)throw Error('Documento vazio');
-   currentURL=doc.defaultView.URL.createObjectURL(new Blob([blob],{type:'application/pdf'}));
-   external.href=currentURL;external.hidden=false;
-   viewer.textContent='Carregando visualização das páginas…';
-   // PDF.js rasteriza para canvas: evita o botão nativo "Abrir", que falha
-   // dentro do iframe srcdoc em alguns navegadores iOS/Android.
-   const lib=await getPdfJs();
-   if(token!==serial)return;
-   lib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-   pdfTask=lib.getDocument({data:new Uint8Array(await blob.arrayBuffer()),useSystemFonts:true,isEvalSupported:false});
-   pdfDoc=await pdfTask.promise;
-   if(token!==serial)return;
-   pager.hidden=false;
-   await renderPage(1);
-  }catch(e){
-   if(token===serial)showPreviewError(e);
-  }
+   const json=JSON.parse(await file.text());
+   if(json.format!=='NY26-DOCS-BACKUP-1')throw Error('Formato inválido');
+   const incoming=safeDocs(json.docs);
+   if(!countDocs(incoming))throw Error('Backup sem anexos compatíveis');
+   if(!docWindow.confirm('Restaurar '+countDocs(incoming)+' comprovantes deste backup? Os anexos atuais também serão preservados.'))return;
+   const current=safeDocs(api.snapshot());
+   for(const [slot,items] of Object.entries(incoming)){
+    const previous=current[slot]||[];
+    for(const item of items){
+     if(!previous.some(x=>x.data===item.data&&x.name===item.name))previous.push(item);
+    }
+    current[slot]=previous;
+   }
+   api.restore(current);applyLinks();persist();
+   msg.textContent='✅ Backup restaurado e aguardando gravação local.';
+  }catch(e){msg.textContent='Falha ao restaurar o backup: '+e.message}
+ });
+ // The native HTML exporter clones the DOM. Reinstate the original base64
+ // references temporarily so the exported file is self-contained.
+ const saveButton=doc.getElementById('save');
+ saveButton?.addEventListener('click',()=>{
+  const sets=api.snapshot();
+  section.querySelectorAll('.category').forEach(cat=>{
+   const slot=cat.getAttribute('data-category');
+   cat.querySelectorAll('.document[data-proof-file]').forEach((item,i)=>{
+    const a=item.querySelector('a.doc-download'),entry=sets[slot]?.[i];
+    if(a&&entry){a.href=entry.data;a.setAttribute('download',entry.name||'comprovante.pdf')}
+   });
+  });
+  docWindow.setTimeout(applyLinks,0);
  },true);
+ try{
+  db=await openDocsDB();
+  if($('viewer').contentDocument!==doc)return;
+  const record=await docsTransaction(db,'readonly',key);
+  if($('viewer').contentDocument!==doc)return;
+  if(record?.docs){
+   const stored=safeDocs(record.docs),current=safeDocs(api.snapshot());
+   // A stored category is authoritative, including explicit removals.
+   for(const [slot,items] of Object.entries(current))if(!Object.hasOwn(stored,slot))stored[slot]=items;
+   api.restore(stored);
+  }else{
+   await docsTransaction(db,'readwrite',key,{version:1,docs:safeDocs(api.snapshot()),updatedAt:Date.now()});
+  }
+  applyLinks();ready=true;
+  const count=countDocs(api.snapshot());
+  msg.textContent='✅ '+count+' comprovante(s) preservado(s) no armazenamento privado deste aparelho, mesmo após novas versões. Para outro celular, use Backup/Restaurar.';
+  const observer=new docWindow.MutationObserver(records=>{
+   if(records.some(r=>r.target?.closest?.('.proof-items')||r.target?.classList?.contains('proof-items'))){
+    applyLinks();schedulePersist();
+   }
+  });
+  observer.observe(section,{childList:true,subtree:true});
+  docWindow.addEventListener('pagehide',()=>{
+   docWindow.clearTimeout(saveTimer);
+   for(const url of pdfUrls.values())docWindow.URL.revokeObjectURL(url);
+   pdfUrls.clear();db?.close();
+  },{once:true});
+ }catch(e){
+  msg.textContent='⚠️ Armazenamento persistente indisponível neste aparelho. Exporte um backup antes de atualizar o NY26.';
+  console.warn('NY26 document storage',e);
+  applyLinks();
+ }
 }
 
 function openFrame(html){
@@ -237,7 +255,7 @@ function openFrame(html){
    return;
   }
   frameReady=true;
-  try{installPdfPreview(doc)}catch(e){console.warn('Visualizador de PDF:',e)}
+  installPdfAttachments(doc).catch(e=>console.warn('Comprovantes:',e));
   // A area Fotos do local aceita imagens; comprovantes PDF ficam em Docs.
   // Sao incorporados ao HTML local, nao sincronizados automaticamente entre contas.
   const docsSection=doc.getElementById('documentos');
