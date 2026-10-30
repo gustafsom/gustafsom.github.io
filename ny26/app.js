@@ -266,10 +266,10 @@ async function installPdfAttachments(doc){
   observer.observe(section,{childList:true,subtree:true});
   docWindow.addEventListener('pagehide',()=>{
    docWindow.clearTimeout(saveTimer);
-   // Nao revogar Blob URLs durante a abertura do leitor nativo no iOS:
-   // a aba nova ainda pode estar consumindo o PDF.
-   db?.close();
-  },{once:true});
+   // Iniciar uma ultima gravacao ao trocar de aba/atualizar; nao fechar
+   // o banco nem revogar o Blob pois o leitor iOS ainda pode consumir o PDF.
+   persist();
+  });
  }catch(e){
   msg.textContent='⚠️ Armazenamento persistente indisponível neste aparelho. Exporte um backup antes de atualizar o NY26.';
   console.warn('NY26 document storage',e);
