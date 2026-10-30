@@ -23,6 +23,7 @@ jobs:
         run: |
           node --check ny26/app.js
           node ny26/tests/settings-navigation.mjs
+          node ny26/tests/attachments-regression.mjs
           node --check ny26/config.js
           node --check ny26/sw.js
           node -e "const fs=require('fs'); const m=JSON.parse(fs.readFileSync('ny26/manifest.webmanifest','utf8')); if(m.scope!='/ny26/'||m.start_url!='/ny26/') process.exit(1)"
