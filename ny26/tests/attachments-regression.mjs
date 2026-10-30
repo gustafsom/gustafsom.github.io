@@ -39,6 +39,22 @@ assert.match(app,/const record=await docsTransaction\(db,'readonly',key\)/);
 assert.match(app,/api\.restore\(stored\)/);
 assert.match(app,/tx\.oncomplete=.*readwrite/);
 assert.match(app,/orphanDocs/);
+
+assert.match(app,/r\.type==='childList'&&r\.target\?\.classList\?\.contains\('proof-items'\)/,
+ 'O observador deve reagir somente a insercoes/remocoes diretas; observar descendentes trava Android');
+assert.ok(!app.includes("r.target?.closest?.('.proof-items')"),
+ 'Observacao recursiva dos descendentes causa loop infinito');
+const lazyStart=app.indexOf('function applyLinks(){');
+const lazyEnd=app.indexOf("let db,ready=false",lazyStart);
+assert.ok(lazyStart>=0&&lazyEnd>lazyStart);
+const sectionCode=app.slice(lazyStart,lazyEnd);
+assert.ok(!sectionCode.slice(0,sectionCode.indexOf("doc.addEventListener('click'")).includes('blobUrlFromData('),
+ 'Criar Blob para cada comprovante no render provoca consumo excessivo de memoria');
+assert.ok(sectionCode.slice(sectionCode.indexOf("doc.addEventListener('click'")).includes('blobUrlFromData(file.data)'),
+ 'O PDF deve ser convertido em Blob apenas quando o usuario clicar');
+assert.match(sectionCode,/del\.textContent!=='🗑️ Remover comprovante'/,
+ 'Evitar reescrever botao de remover para que nao gere mutacoes em ciclo');
+
 assert.match(app,/link\.target='_blank'/);
 assert.match(app,/link\.removeAttribute\('download'\)/);
 assert.match(app,/a\.href=entry\.data/,'Exportacao HTML deve preservar o PDF incorporado');
