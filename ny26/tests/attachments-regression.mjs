@@ -55,7 +55,7 @@ assert.ok(sectionCode.slice(sectionCode.indexOf("doc.addEventListener('click'"))
 assert.match(sectionCode,/del\.textContent!=='🗑️ Remover comprovante'/,
  'Evitar reescrever botao de remover para que nao gere mutacoes em ciclo');
 
-assert.match(app,/link\.target='_blank'/);
+assert.match(app,/link\.setAttribute\('target','_blank'\)/);
 assert.match(app,/link\.removeAttribute\('download'\)/);
 assert.match(app,/a\.href=entry\.data/,'Exportacao HTML deve preservar o PDF incorporado');
 assert.match(app,/new docWindow\.DOMParser\(\)/,'Restauracao de HTML antigo necessaria');
