@@ -209,7 +209,7 @@ function installPdfPreview(doc){
    const lib=await getPdfJs();
    if(token!==serial)return;
    lib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-   pdfTask=lib.getDocument({data:new Uint8Array(await blob.arrayBuffer()),useSystemFonts:true});
+   pdfTask=lib.getDocument({data:new Uint8Array(await blob.arrayBuffer()),useSystemFonts:true,isEvalSupported:false});
    pdfDoc=await pdfTask.promise;
    if(token!==serial)return;
    pager.hidden=false;
