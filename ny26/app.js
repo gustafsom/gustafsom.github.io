@@ -61,6 +61,18 @@ function openFrame(html){
    return;
   }
   frameReady=true;
+  // A area Fotos do local aceita imagens; comprovantes PDF ficam em Docs.
+  // Sao incorporados ao HTML local, nao sincronizados automaticamente entre contas.
+  const docsSection=doc.getElementById('documentos');
+  if(docsSection&&!doc.getElementById('ny26-pdf-info')){
+    const help=doc.createElement('p');
+    help.id='ny26-pdf-info';
+    help.style.cssText='background:#fff3d7;border:1px solid #e8cb89;border-radius:9px;padding:12px;font:13px/1.45 system-ui,sans-serif;color:#5d451f;margin:12px 0';
+    help.textContent='📎 PDFs: toque em “Adicionar PDF ou imagem” na categoria correspondente. Atenção: o PDF fica somente nesta cópia do roteiro; o indicador “Sincronizado” se refere às listas, não aos comprovantes. Para compartilhar, salve o HTML atualizado e importe-o novamente pelo administrador. PDFs grandes podem exceder o limite de importação; mantenha também os originais salvos no iPhone e Android.';
+    const header=docsSection.querySelector('.intro');
+    if(header)header.insertAdjacentElement('afterend',help);
+    else docsSection.prepend(help);
+  }
   for(const d of ['actions','packing'])lastMaps[d]=toMap(read(d),d);
   try{
    // Capture all internal links before srcdoc resolves them against the
@@ -229,6 +241,21 @@ $('reset-password').onclick=async()=>{
 $('show-settings').onclick=()=>!$('settings').classList.contains('hide')?returnFromSettings():user?settings():show('setup');
 $('open-settings').onclick=settings;
 $('back-settings').onclick=returnFromSettings;
+function openDocuments(){
+  if(!user){show('setup');return}
+  const frame=$('viewer');
+  const doc=frame.contentDocument;
+  if(!frameReady||!doc?.getElementById('documentos')){
+    $msg('settings-msg','Ainda não foi possível abrir os comprovantes. Abra o roteiro primeiro.');
+    show('waiting');return;
+  }
+  // Mantem o mesmo iframe aberto: evita perder a posicao e os itens carregados.
+  document.body.classList.add('running');
+  const win=frame.contentWindow,hash='#documentos';
+  if(win.location.hash!==hash)win.location.hash=hash;
+  else win.dispatchEvent(new win.Event('hashchange'));
+}
+$('open-documents').onclick=openDocuments;
 $('home').onclick=returnFromSettings;
 $('logout').onclick=async()=>{if(!confirm('Sair da conta neste aparelho?'))return;clear();await auth.signOut();show('setup')};
 $('publish-route').onclick=async()=>{try{await importRoute()}catch(e){error(e)}};
