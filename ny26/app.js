@@ -36,6 +36,40 @@ function cachedRoute(){try{return JSON.parse(localStorage.getItem(K.route)||'nul
 function refresh(){let s,t='wait';if(!navigator.onLine)s='📵 Offline';else if(pending)s='⏳ Enviando';else if(fromCache)s='🟡 Cache local';else if(lastServer){s='✅ Sincronizado';t='good'}else s='☁️ Conectando';banner(s,t);
  $msg('sync-explanation',(lastServer?'Último retorno confirmado do servidor: '+new Date(lastServer).toLocaleString('pt-BR')+'. ':'Ainda sem confirmação do servidor. ')+(pending?'Há alterações aguardando envio. ':'')+'Alterações entre celulares exigem internet.');
 }
+
+function boardingPassCardsHtml(){
+ const people=[['gustavo','Gustavo'],['renata','Renata'],['lia','Lia'],['lais','Laís']];
+ const legs=[['ida-1','Ida · 1º voo'],['ida-2','Ida · 2º voo'],['volta-1','Volta · 1º voo'],['volta-2','Volta · 2º voo']];
+ const groups=legs.map(([code,label],index)=>{
+  const cards=people.map(([person,name])=>{
+   const slot='bp-'+code+'-'+person;
+   return '<section class="category ny26-bp-card" id="doc-'+slot+'" data-category="'+slot+'">'+
+    '<div class="category-head"><div><h3>🎫 '+name+'</h3><p>Cartão individual · '+label+'</p></div>'+
+    '<span class="doc-badge" data-badge="'+slot+'">Sem arquivo</span></div>'+
+    '<div class="proof-items" data-proof-items="'+slot+'"><p class="no-doc">Aguardando check-in.</p></div>'+
+    '<label class="filebutton requires-js" for="upload-'+slot+'">＋ Anexar PDF ou imagem</label>'+
+    '<input type="file" class="fileinput requires-js" id="upload-'+slot+'" data-upload="'+slot+
+    '" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" multiple></section>';
+  }).join('');
+  return '<details class="ny26-bp-leg"'+(index===0?' open':'')+'><summary>'+label+
+   ' · 4 passageiros</summary><div class="ny26-bp-grid">'+cards+'</div></details>';
+ }).join('');
+ return '<div id="ny26-boarding-passes"><h2>🛫 Cartões de embarque</h2>'+
+  '<p class="ny26-bp-intro">Anexe o cartão de cada pessoa para cada trecho. Os cartões só são emitidos no check-in. '+
+  'PDFs e imagens são aceitos; guarde os QR codes também fora do aplicativo por segurança.</p>'+
+  groups+'</div>';
+}
+const boardingPassCss=
+ '#ny26-boarding-passes{padding:12px 0 20px;border-bottom:2px solid #dceaf2;margin:12px 0 18px}'+
+ '#ny26-boarding-passes h2{font-size:20px}'+
+ '.ny26-bp-intro{font-size:13px;color:#4d677f;line-height:1.5}'+
+ '.ny26-bp-leg{border:1px solid #d5e4ed;border-radius:12px;background:#f6fbff;margin:10px 0;overflow:hidden}'+
+ '.ny26-bp-leg>summary{font-size:14px;font-weight:800;padding:13px;color:#16567c;cursor:pointer}'+
+ '.ny26-bp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px}'+
+ '.ny26-bp-card{margin:0!important;min-width:0;padding:12px!important}'+
+ '.ny26-bp-card h3{font-size:15px!important}'+
+ '@media(max-width:580px){.ny26-bp-grid{grid-template-columns:1fr}}';
+
 function sanitizeRouteHtml(source){
  // Documents loaded with iframe.srcdoc inherit the *parent URL as base*.
  // Without an explicit base, links such as #mala can navigate the iframe to
@@ -49,6 +83,11 @@ function sanitizeRouteHtml(source){
  // personal files into the public code or Firestore's itinerary collection.
  // Textos legados pediam exportar HTML; a PWA agora grava os anexos no aparelho.
  h=h.replace(/Clique em "Salvar HTML atualizado" e transfira o novo arquivo para os celulares\./g,'O comprovante será salvo neste aparelho.');
+ // Adicionar antes da inicializacao da lista do roteiro privado.
+ if(!h.includes('id="ny26-boarding-passes"')&&/id=["']doc-voos["']/i.test(h)){
+  h=h.replace(/<section\b[^>]*\bid=["']doc-voos["'][^>]*>/i,boardingPassCardsHtml()+'$&');
+  h=h.replace(/<\/head>/i,'<style id="ny26-boarding-css">'+boardingPassCss+'</style></head>');
+ }
  const marker="try{\n document.body.classList.add('js-ready');readStatic();refreshAll();loadDone();";
  if(h.includes(marker)&&!h.includes('window.NY26Documents=')){
   const api="window.NY26Documents={snapshot:function(){return docs;},restore:function(saved){Object.keys(docs).forEach(function(slot){if(Array.isArray(saved[slot]))docs[slot]=saved[slot];});refreshAll();}};\n";
