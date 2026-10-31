@@ -482,10 +482,158 @@ async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('l
  try{const p=db.collection('trips').doc(TRIP).collection('members').doc(u.uid);
  let snap;try{snap=await p.get({source:navigator.onLine?'default':'cache'})}catch{snap=await p.get({source:'cache'})}
  if(!snap.exists)throw Error('Seu usuário ainda não foi autorizado pelo administrador.');role=snap.data().role||'viewer';
- $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
+ $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');$('admin-review').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
  subscribeContent();subscribeState();
  }catch(e){error(e);$msg('loading-text',String(e?.message||e));show('waiting')}
 }
+
+// Protected checklist reconciliation: the PRIVATE JSON is selected locally by
+// the administrator; no itinerary or personal details are stored in GitHub.
+let reviewPlan=null,reviewBackedUp=false,reviewApplying=false;
+function reviewStatus(message){$msg('checklist-review-status',message)}
+function reviewValidate(p){
+ if(!p||p.format!=='NY26-CHECKLIST-REVIEW-1'||p.strategy!=='merge_preserve_progress')throw Error('Arquivo de revisão incompatível.');
+ const spec=[['actions',150],['packing',150],['addActions',100],['addPacking',100]];
+ for(const [field,max] of spec){
+  if(!Array.isArray(p[field])||p[field].length>max)throw Error('Lista '+field+' inválida ou grande demais.');
+  const ids=new Set();
+  for(const x of p[field]){
+   if(!x||typeof x!=='object'||Array.isArray(x)||typeof x.id!=='string'||!/^[A-Za-z0-9_-]{1,65}$/.test(x.id)||ids.has(x.id))throw Error('ID inválido/duplicado em '+field);
+   ids.add(x.id);
+   for(const [k,v] of Object.entries(x)){
+    if(!['id','title','note','due','group','priority','who','category','bag','qty','phase','done','status','confirmedComplete','reviveIfDiscardedToSeparated'].includes(k))throw Error('Campo inesperado em '+field+': '+k);
+    if(typeof v==='string'&&v.length>2000)throw Error('Texto extenso demais em '+x.id);
+   }
+   if(Object.hasOwn(x,'due')&&x.due!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(x.due))throw Error('Data inválida em '+x.id);
+  }
+ }
+ if(p.actions.some(x=>Object.hasOwn(x,'done')||Object.hasOwn(x,'status'))||
+    p.packing.some(x=>Object.hasOwn(x,'done')||Object.hasOwn(x,'status')))throw Error('A revisão não pode sobrescrever diretamente progresso existente.');
+ return p;
+}
+function reviewDefaults(domain){
+ let doc=null;try{doc=$('viewer').contentDocument}catch{}
+ const tag=domain==='actions'?'ny-checklist-defaults':'pk-defaults';
+ try{const x=JSON.parse(doc?.getElementById(tag)?.textContent||'[]');return x.filter(v=>v&&typeof v.id==='string')}catch{return []}
+}
+function reviewMergeMap(domain,remoteDocs){
+ const map=new Map(reviewDefaults(domain).map(v=>[v.id,v]));
+ const local=toMap(read(domain),domain);
+ for(const [id,value] of Object.entries(local))map.set(id,value);
+ const deleted=new Set();
+ for(const rec of remoteDocs){
+  const v=rec.data();
+  if(v.domain!==domain||typeof v.value?.id!=='string')continue;
+  const id=v.value.id;
+  if(v.deleted){deleted.add(id);map.delete(id)}
+  else{deleted.delete(id);map.set(id,v.value)}
+ }
+ return {map,deleted};
+}
+async function reviewServerState(){
+ if(role!=='admin'||!user||!db)throw Error('É preciso entrar como administrador.');
+ if(!navigator.onLine||pending)throw Error('Conecte-se e aguarde todas as alterações pendentes serem sincronizadas.');
+ const c=db.collection('trips').doc(TRIP).collection('state');
+ const snapshot=await c.get({source:'server'});
+ return {ref:c,docs:snapshot.docs};
+}
+function reviewBackupDownload(state){
+ const maps={actions:reviewMergeMap('actions',state.docs),packing:reviewMergeMap('packing',state.docs)};
+ const payload={format:'NY26-CHECKLISTS-BACKUP-1',date:new Date().toISOString(),
+  actions:[...maps.actions.map.values()],packing:[...maps.packing.map.values()],
+  deletedActions:[...maps.actions.deleted],deletedPacking:[...maps.packing.deleted]};
+ const file=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(file),a=document.createElement('a');
+ a.href=url;a.download='NY26-Backup-Acoes-Mala-'+new Date().toISOString().slice(0,10)+'.json';
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+function reviewEdits(p){
+ return [...p.actions.map(x=>({domain:'actions',record:x,isNew:false})),
+         ...p.packing.map(x=>({domain:'packing',record:x,isNew:false})),
+         ...p.addActions.map(x=>({domain:'actions',record:x,isNew:true})),
+         ...p.addPacking.map(x=>({domain:'packing',record:x,isNew:true}))];
+}
+function reviewApplyRecord(existing,edit,domain,isNew){
+ if(!existing&&!isNew)return null;
+ const base=existing||{id:edit.id};
+ const allowed=domain==='actions'?['title','note','due','group','priority','phase']:
+                                    ['title','note','who','category','bag','qty','priority'];
+ const result={...base};
+ for(const field of allowed)if(Object.hasOwn(edit,field))result[field]=edit[field];
+ if(domain==='actions'){
+  // Explicit factual confirmations from the master may close stale reminders;
+  // all other existing checkmarks are preserved unchanged.
+  if(edit.confirmedComplete===true)result.done=true;
+  else if(isNew&&typeof result.done!=='boolean')result.done=false;
+ }else{
+  if(edit.reviveIfDiscardedToSeparated===true&&Number(result.status)===3)result.status=1;
+  else if(isNew&&![0,1,2,3].includes(result.status))result.status=0;
+ }
+ return result;
+}
+async function reviewPreview(){
+ const file=$('checklist-review-import').files?.[0];if(!file)throw Error('Escolha o arquivo JSON da revisão v1.55.');
+ if(file.size>200000)throw Error('Arquivo de revisão acima de 200 KB.');
+ reviewPlan=reviewValidate(JSON.parse(await file.text()));
+ reviewBackedUp=false;$('checklist-review-backup').disabled=false;
+ $('checklist-review-apply').disabled=true;
+ const p=reviewPlan;
+ reviewStatus('Revisão '+String(p.source||'privada')+': '+p.actions.length+' ações revisadas ('+
+  p.actions.filter(x=>x.confirmedComplete).length+' confirmações), '+p.packing.length+
+  ' itens da mala ajustados e '+p.addActions.length+' novas ações. Antes de aplicar, salve o backup.');
+}
+async function reviewBackup(){
+ if(!reviewPlan)throw Error('Analise o arquivo de revisão primeiro.');
+ const state=await reviewServerState();
+ reviewBackupDownload(state);
+ reviewBackedUp=true;$('checklist-review-apply').disabled=false;
+ reviewStatus('Backup gerado para a pasta Downloads. Confira se o arquivo foi salvo. Em seguida, aplique a revisão: marcações e itens personalizados serão preservados.');
+}
+async function reviewApply(){
+ if(reviewApplying)throw Error('A atualização já está em andamento.');
+ if(!reviewPlan||!reviewBackedUp)throw Error('Analise a revisão e salve o backup primeiro.');
+ if(!confirm('Aplicar revisão às listas Ações e Mala dos dois aparelhos? As marcações serão preservadas, exceto confirmações explicitamente indicadas na revisão. O roteiro e comprovantes não serão modificados.'))return;
+ reviewApplying=true;$('checklist-review-apply').disabled=true;
+ try{
+  const state=await reviewServerState(),edits=reviewEdits(reviewPlan),base={
+   actions:reviewMergeMap('actions',state.docs),packing:reviewMergeMap('packing',state.docs)};
+  const batchSize=edits.length;
+  if(batchSize>350)throw Error('Revisão acima do limite seguro.');
+  // Transaction reads fresh server records BEFORE writing. If another phone
+  // changes a checklist item, Firestore retries and preserves its latest state.
+  const result=await db.runTransaction(async tx=>{
+   const refs=edits.map(x=>state.ref.doc((x.domain==='actions'?'a_':'p_')+encodeURIComponent(x.record.id)));
+   const docs=await Promise.all(refs.map(ref=>tx.get(ref)));
+   const updates=[],counts={modified:0,added:0,unchanged:0,deletedPreserved:0,missing:0};
+   for(let i=0;i<edits.length;i++){
+    const x=edits[i],snapshot=docs[i],remote=snapshot.exists?snapshot.data():null;
+    if(remote?.deleted){counts.deletedPreserved++;continue}
+    const current=remote?.value||base[x.domain].map.get(x.record.id);
+    const revised=reviewApplyRecord(current,x.record,x.domain,x.isNew);
+    if(!revised){counts.missing++;continue}
+    if(current&&same(current,revised)){counts.unchanged++;continue}
+    updates.push({domain:x.domain,value:revised,ref:refs[i]});
+    if(current)counts.modified++;else counts.added++;
+   }
+   const stamp=firebase.firestore.FieldValue.serverTimestamp();
+   for(const u of updates)tx.set(u.ref,{domain:u.domain,value:u.value,deleted:false,device,updatedAt:stamp});
+   return {updates,counts};
+  });
+  for(const domain of ['actions','packing']){
+   const map=toMap(read(domain),domain);
+   for(const update of result.updates.filter(x=>x.domain===domain))map[update.value.id]=update.value;
+   save(domain,map);lastMaps[domain]=map;
+   try{(domain==='actions'?$('viewer').contentWindow.NY26Checklist:
+    $('viewer').contentWindow.NY26Packing)?.reloadFromStorage?.()}catch{}
+  }
+  reviewPlan=null;reviewBackedUp=false;$('checklist-review-backup').disabled=true;
+  reviewStatus('✅ Revisão aplicada e salva no Firebase: '+result.counts.modified+' existentes ajustados, '+
+    result.counts.added+' adicionados, '+result.counts.unchanged+' mantidos, '+
+    result.counts.deletedPreserved+' exclusões anteriores preservadas. Checkmarks e mala não foram zerados.');
+ }finally{reviewApplying=false}
+}
+
 async function importRoute(){if(role!=='admin')throw Error('Somente administrador pode importar o roteiro.');
  if(!navigator.onLine)throw Error('Conecte-se à internet para publicar o roteiro.');
  const f=$('route-import').files[0];if(!f)throw Error('Selecione o arquivo HTML privado.');
@@ -571,6 +719,10 @@ function openDocuments(){
 $('open-documents').onclick=openDocuments;
 $('home').onclick=returnFromSettings;
 $('logout').onclick=async()=>{if(!confirm('Sair da conta neste aparelho?'))return;clear();await auth.signOut();show('setup')};
+$('checklist-review-import').addEventListener('change',()=>{reviewPlan=null;reviewBackedUp=false;$('checklist-review-backup').disabled=true;$('checklist-review-apply').disabled=true;reviewStatus('Arquivo selecionado. Toque em Analisar revisão.');});
+$('checklist-review-preview').onclick=async()=>{try{await reviewPreview()}catch(e){reviewStatus('⚠️ '+(e.message||e))}};
+$('checklist-review-backup').onclick=async()=>{try{await reviewBackup()}catch(e){reviewStatus('⚠️ '+(e.message||e))}};
+$('checklist-review-apply').onclick=async()=>{try{await reviewApply()}catch(e){reviewStatus('⚠️ '+(e.message||e));$('checklist-review-apply').disabled=false}};
 $('publish-route').onclick=async()=>{try{await importRoute()}catch(e){error(e)}};
 $('route-import').addEventListener('change',async()=>{if(!$('route-import').files?.length)return;try{await importRoute()}catch(e){error(e)}});
 $('try-sync').onclick=()=>{if(user){subscribeContent();subscribeState()}refresh()};
