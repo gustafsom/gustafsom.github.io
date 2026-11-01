@@ -548,7 +548,7 @@ function installFamilyReunionPlan(doc){
   '@media(max-width:560px){#ny26-reunion-plan .ny26-r-grid{grid-template-columns:1fr}}',
   '@media print{',
   'body > :not(#ny26-reunion-print){display:none!important}',
-  '#ny26-reunion-print{display:grid!important;grid-template-columns:1fr 1fr;gap:13mm;padding:8mm;font:12pt/1.4 Arial,sans-serif;color:#111;background:white}',
+  '#ny26-reunion-print[hidden]{display:grid!important;grid-template-columns:1fr 1fr;gap:13mm;padding:8mm;font:12pt/1.4 Arial,sans-serif;color:#111;background:white}',
   '#ny26-reunion-print .ny26-print-card{border:2px dashed #777;border-radius:6px;padding:11mm;min-height:86mm;page-break-inside:avoid;break-inside:avoid;overflow-wrap:anywhere}',
   '#ny26-reunion-print h2{font-size:17pt;margin:0 0 8mm}',
   '#ny26-reunion-print p{margin:0 0 3mm}',
