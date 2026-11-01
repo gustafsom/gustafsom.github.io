@@ -122,11 +122,11 @@ function addEmergencyMenuToRouteHtml(html){
    'consulados e plano de reencontro da família. Em perigo imediato nos EUA, ligue para '+
    '<a href="tel:911"><strong>911</strong></a>.</p>'+
    '<p class="toplink"><a href="#apoio">ℹ️ Outras informações de apoio</a></p></section>';
-  h=h.replace(/<section\b[^>]*\bdata-view=["']apoio["'][^>]*>/i,page+'function sanitizeRouteHtml(source){');
+  h=h.replace(/<section\b[^>]*\bdata-view=["']apoio["'][^>]*>/i,page+'$&');
  }
  if(!/<a\b[^>]*\bdata-view=["']emergencia["']/i.test(h)){
   h=h.replace(/<a\b[^>]*\bdata-view=["']apoio["'][^>]*>/i,
-   '<a class="daytab ny26-emergency-tab" data-view="emergencia" href="#emergencia">🚨 Emergência</a>function sanitizeRouteHtml(source){');
+   '<a class="daytab ny26-emergency-tab" data-view="emergencia" href="#emergencia">🚨 Emergência</a>$&');
  }
  // The original standalone HTML has an explicit allow-list for #hash routes.
  // A link without this change would fall back to the current day's itinerary.
