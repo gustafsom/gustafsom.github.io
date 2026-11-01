@@ -503,6 +503,219 @@ function installEmergencyContacts(doc){
  if(legacy)legacy.hidden=true;
 }
 
+
+function installFamilyReunionPlan(doc){
+ // NY 12 family protocol. Personal telephone numbers are only stored under
+ // this authenticated user's browser profile; never in public GitHub files.
+ const page=doc.getElementById('apoio')||doc.querySelector('[data-view="apoio"]');
+ if(!page||doc.getElementById('ny26-reunion-plan')||!user?.uid)return;
+ const view=doc.defaultView;
+ const key='ny26-reunion-contact-v1:'+TRIP+':'+user.uid;
+ let settings={phone1:'',phone2:'',liaWith:'Gustavo',laisWith:'Renata'};
+ try{
+  const existing=JSON.parse(localStorage.getItem(key)||'null');
+  if(existing&&typeof existing==='object'&&!Array.isArray(existing)){
+   for(const field of ['phone1','phone2','liaWith','laisWith']){
+    if(typeof existing[field]==='string')settings[field]=existing[field].slice(0,40);
+   }
+  }
+ }catch(e){console.warn('Contatos de reencontro nao carregados',e)}
+ const style=doc.createElement('style');
+ style.id='ny26-reunion-style';
+ style.textContent=[
+  '#ny26-reunion-plan{background:#f3f8fb;color:#193e55;border:1px solid #bbd3e2;border-radius:14px;margin:14px 0 20px;padding:16px;font:14px/1.5 system-ui,sans-serif}',
+  '#ny26-reunion-plan *{box-sizing:border-box}',
+  '#ny26-reunion-plan h2{font-size:19px;margin:0 0 7px;color:#174663}',
+  '#ny26-reunion-plan h3{font-size:15px;margin:0 0 9px;color:#174663}',
+  '#ny26-reunion-plan p{margin:6px 0 12px}',
+  '#ny26-reunion-plan .ny26-r-rule{padding:12px;background:#fff6e8;border-left:4px solid #b77e25;border-radius:8px;font-weight:700;margin:12px 0}',
+  '#ny26-reunion-plan .ny26-r-steps{margin:8px 0 14px;padding-left:22px}',
+  '#ny26-reunion-plan .ny26-r-steps li{margin:7px 0}',
+  '#ny26-reunion-plan details{border:1px solid #d4e2ea;background:white;border-radius:10px;margin:9px 0;padding:11px 13px}',
+  '#ny26-reunion-plan details summary{cursor:pointer;font-weight:750;color:#155578}',
+  '#ny26-reunion-plan .ny26-r-places{margin:10px 0 3px;padding-left:18px}',
+  '#ny26-reunion-plan .ny26-r-places li{margin:6px 0}',
+  '#ny26-reunion-plan .ny26-r-english{background:#eff6fa;border-radius:8px;padding:10px 12px;font-weight:700;font-size:13px;line-height:1.5}',
+  '#ny26-reunion-plan .ny26-r-form{border-top:1px solid #c7dce7;margin-top:13px;padding-top:13px}',
+  '#ny26-reunion-plan .ny26-r-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}',
+  '#ny26-reunion-plan label{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:12px}',
+  '#ny26-reunion-plan input,#ny26-reunion-plan select{font:14px system-ui,sans-serif;padding:11px;border:1px solid #a9c5d5;border-radius:8px;width:100%;min-width:0;background:white;color:#172f42}',
+  '#ny26-reunion-plan button{min-height:44px;padding:10px 14px;border:1px solid #1b668d;border-radius:9px;background:#166589;color:#fff;font:700 13px system-ui,sans-serif;cursor:pointer}',
+  '#ny26-reunion-plan .ny26-r-tools{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}',
+  '#ny26-reunion-plan .ny26-r-note{font-size:12px;color:#566f7c}',
+  '#ny26-reunion-plan .ny26-r-status{font-size:12px;font-weight:700;color:#175a79;min-height:18px}',
+  '#ny26-reunion-print[hidden]{display:none!important}',
+  '@media(max-width:560px){#ny26-reunion-plan .ny26-r-grid{grid-template-columns:1fr}}',
+  '@media print{',
+  'body > :not(#ny26-reunion-print){display:none!important}',
+  '#ny26-reunion-print{display:grid!important;grid-template-columns:1fr 1fr;gap:13mm;padding:8mm;font:12pt/1.4 Arial,sans-serif;color:#111;background:white}',
+  '#ny26-reunion-print .ny26-print-card{border:2px dashed #777;border-radius:6px;padding:11mm;min-height:86mm;page-break-inside:avoid;break-inside:avoid;overflow-wrap:anywhere}',
+  '#ny26-reunion-print h2{font-size:17pt;margin:0 0 8mm}',
+  '#ny26-reunion-print p{margin:0 0 3mm}',
+  '#ny26-reunion-print .ny26-print-phone{font-size:15pt;font-weight:700}',
+  '#ny26-reunion-print .ny26-print-help{font-size:10pt;margin-top:5mm}',
+  '@page{margin:9mm}',
+  '}'
+ ].join('\n');
+ doc.head.appendChild(style);
+ const root=doc.createElement('section');root.id='ny26-reunion-plan';
+ root.setAttribute('aria-label','Plano familiar de reencontro NY12');
+ const heading=doc.createElement('h2');heading.textContent='🧭 Plano de emergência — reencontro da família';
+ const intro=doc.createElement('p');
+ intro.textContent='Protocolo combinado no NY 12 para separação ou desaparecimento de Lia e Laís. Deixe os cartões preparados antes de sair do hotel.';
+ const rule=doc.createElement('p');rule.className='ny26-r-rule';
+ rule.textContent='Regra principal: se alguém se perder, NÃO sai procurando sozinho. Para em local seguro, procura um funcionário, segurança ou policial e mostra o cartão de contatos. Nunca acompanha desconhecidos.';
+ root.append(heading,intro,rule);
+ function title(text){const h=doc.createElement('h3');h.textContent=text;return h}
+ function makeList(items,css='ny26-r-steps'){
+  const list=doc.createElement(css==='ny26-r-steps'?'ol':'ul');
+  list.className=css;
+  for(const item of items){const li=doc.createElement('li');li.textContent=item;list.appendChild(li)}
+  return list;
+ }
+ root.append(title('Se uma das meninas se perder'),
+  makeList([
+   'Lia ou Laís: parar em local seguro, sem correr e sem tentar encontrar os pais sozinha.',
+   'Procurar funcionário identificado, segurança, balcão de informações, policial ou uma loja movimentada e pedir ajuda.',
+   'Mostrar o cartão de emergência com os telefones dos responsáveis.',
+   'Não sair com desconhecidos, não atravessar ruas nem trocar de estação, plataforma ou cais para procurar a família.',
+   'Se houver perigo imediato ou desaparecimento sem localização segura, acionar o 911.'
+  ]));
+ function accordion(label,items){
+  const det=doc.createElement('details');
+  const sum=doc.createElement('summary');sum.textContent=label;
+  det.append(sum,makeList(items,'ny26-r-places'));
+  root.appendChild(det);return det;
+ }
+ accordion('👨‍👩‍👧‍👧 Responsabilidade dos adultos e prevenção',[
+  'Antes de sair, cada adulto fica responsável por uma menina. Caminhar em formação adulto → meninas → adulto.',
+  'Quem estiver com uma criança permanece com ela; não sai correndo para procurar a outra. Coordenar a busca com a equipe do local e por telefone.',
+  'Fotografar as roupas das meninas todos os dias, antes do passeio.',
+  'Conferir os cartões com telefones acessíveis nas roupas/mochilas e combinar a regra de pedir ajuda a funcionários.'
+ ]);
+ accordion('📍 Onde pedir ajuda em cada passeio',[
+  'Times Square: entrar em loja movimentada e procurar funcionário ou segurança; não atravessar a multidão.',
+  'SUMMIT, Museu de História Natural (AMNH) e bibliotecas: procurar recepção, balcão de informações ou segurança.',
+  'Central Park: procurar funcionário ou policial próximo; não atravessar o parque à procura dos pais.',
+  'DUMBO, Brooklyn Heights e Promenade: procurar estabelecimento aberto, segurança ou policial.',
+  'Metrô e Roosevelt Island Tramway: procurar funcionário ou interfone Help Point; não mudar de plataforma nem embarcar em outro veículo para procurar a família.',
+  'Ferry: procurar um funcionário da equipe; não trocar de cais.'
+ ]);
+ const english=doc.createElement('details');
+ const englishSum=doc.createElement('summary');englishSum.textContent='🗣️ Frases em inglês para mostrar ou falar';
+ const englishWords=doc.createElement('div');englishWords.className='ny26-r-english';
+ englishWords.textContent='I am lost. Please help me find my parents. Please call my parents. I speak Portuguese.';
+ english.append(englishSum,englishWords);
+ root.appendChild(english);
+ const danger=doc.createElement('p');danger.className='ny26-r-note';
+ danger.textContent='⚠️ Perigo imediato: 911. Para desencontro sem perigo imediato, funcionários e segurança do local são a primeira referência. Evite deslocamentos improvisados em busca da criança.';
+ root.appendChild(danger);
+ const form=doc.createElement('div');form.className='ny26-r-form';
+ form.appendChild(title('📇 Cartões de contato — 4 cópias para imprimir'));
+ const explain=doc.createElement('p');explain.className='ny26-r-note';
+ explain.textContent='Preencha os dois números de telefone em formato internacional (+55… ou +1…). Eles ficam somente neste navegador e não são enviados ao GitHub nem sincronizados automaticamente com o outro celular.';
+ form.appendChild(explain);
+ const fields=doc.createElement('div');fields.className='ny26-r-grid';
+ function phoneField(label,field){
+  const holder=doc.createElement('label');holder.textContent=label;
+  const input=doc.createElement('input');input.type='tel';input.autocomplete='off';input.inputMode='tel';input.maxLength=40;
+  input.placeholder='+55 (DDD) 9XXXX-XXXX';input.value=settings[field]||'';
+  input.setAttribute('data-ny26-reunion',field);holder.appendChild(input);
+  fields.appendChild(holder);return input;
+ }
+ const phone1=phoneField('Telefone de Gustavo', 'phone1');
+ const phone2=phoneField('Telefone de Renata','phone2');
+ function assignment(child,field){
+  const holder=doc.createElement('label');holder.textContent='Adulto responsável por '+child;
+  const select=doc.createElement('select');select.setAttribute('data-ny26-reunion',field);
+  for(const name of ['Gustavo','Renata']){
+   const option=doc.createElement('option');option.value=name;option.textContent=name;select.appendChild(option);
+  }
+  select.value=settings[field];holder.appendChild(select);fields.appendChild(holder);return select;
+ }
+ const liaWith=assignment('Lia','liaWith');
+ const laisWith=assignment('Laís','laisWith');
+ form.appendChild(fields);
+ const tools=doc.createElement('div');tools.className='ny26-r-tools';
+ const save=doc.createElement('button');save.type='button';save.textContent='💾 Salvar contatos neste aparelho';
+ const print=doc.createElement('button');print.type='button';print.textContent='🖨️ Imprimir 4 cartões';
+ const copy=doc.createElement('button');copy.type='button';copy.textContent='📋 Copiar instruções';
+ tools.append(save,print,copy);form.appendChild(tools);
+ const status=doc.createElement('p');status.className='ny26-r-status';status.setAttribute('role','status');
+ status.textContent='Telefones não verificados neste aparelho. Preencha e salve antes de imprimir.';
+ form.appendChild(status);
+ root.appendChild(form);
+ const printable=doc.createElement('section');
+ printable.id='ny26-reunion-print';printable.hidden=true;
+ doc.body.appendChild(printable);
+ const values=()=>({
+  phone1:phone1.value.trim().slice(0,40),phone2:phone2.value.trim().slice(0,40),
+  liaWith:liaWith.value,laisWith:laisWith.value
+ });
+ function complete(v){
+  return [v.phone1,v.phone2].every(n=>/^\+?[\d\s().-]{8,40}$/.test(n)&&n.replace(/\D/g,'').length>=9);
+ }
+ function persist(){
+  const v=values();
+  if(!complete(v)){status.textContent='⚠️ Informe os dois telefones completos, com DDI e DDD, antes de salvar.';return false}
+  try{localStorage.setItem(key,JSON.stringify(v));settings=v;
+   status.textContent='✅ Contatos salvos neste aparelho. Prepare também os cartões do outro celular, pois não há sincronização automática.';
+   return true;
+  }catch(e){status.textContent='⚠️ Não foi possível salvar neste aparelho. Use Imprimir após preencher e guarde os cartões.';return false}
+ }
+ function makeCard(child,number,v){
+  const card=doc.createElement('article');card.className='ny26-print-card';
+  const h=doc.createElement('h2');h.textContent='HELP — '+child+' · cópia '+number;
+  card.appendChild(h);
+  for(const value of [
+   'I am lost. Please help me find my parents.',
+   'I speak Portuguese. Please call my parents.',
+   'Gustavo:',v.phone1,
+   'Renata:',v.phone2,
+   'If there is immediate danger, call 911.'
+  ]){
+   const p=doc.createElement('p');p.textContent=value;
+   if(value===v.phone1||value===v.phone2)p.className='ny26-print-phone';
+   card.appendChild(p);
+  }
+  const sub=doc.createElement('p');sub.className='ny26-print-help';sub.textContent='Please stay with an identified employee or a police officer. Do not leave with strangers.';
+  card.appendChild(sub);return card;
+ }
+ save.addEventListener('click',persist);
+ print.addEventListener('click',()=>{
+  const v=values();
+  if(!complete(v)){status.textContent='⚠️ Preencha os dois telefones antes de imprimir os cartões.';return}
+  persist();printable.replaceChildren(
+   makeCard('Lia',1,v),makeCard('Laís',1,v),
+   makeCard('Lia',2,v),makeCard('Laís',2,v)
+  );
+  try{
+   if(typeof view.print!=='function')throw Error('Impressão indisponível');
+   view.print();
+   status.textContent='Use o menu de impressão do telefone para imprimir ou salvar os quatro cartões em PDF.';
+  }catch(e){status.textContent='Não foi possível abrir a impressão neste aparelho. Use Copiar instruções e imprima em outro dispositivo.'}
+ });
+ copy.addEventListener('click',async()=>{
+  const v=values();
+  const text=[
+   'PLANO DE REENCONTRO DA FAMÍLIA — NY26',
+   'Quem se perder: ficar em local seguro, pedir ajuda a funcionário, segurança ou policial, mostrar cartão. Não ir com estranhos.',
+   'Gustavo: '+(v.phone1||'[preencher]'),
+   'Renata: '+(v.phone2||'[preencher]'),
+   'Lia com '+v.liaWith+'; Laís com '+v.laisWith,
+   'I am lost. Please help me find my parents. Please call my parents. I speak Portuguese.',
+   'Emergência imediata: 911.'
+  ].join('\n');
+  try{
+   if(!navigator.clipboard?.writeText)throw Error('Clipboard indisponível');
+   await navigator.clipboard.writeText(text);
+   status.textContent='✅ Plano de reencontro copiado.';
+  }catch(e){status.textContent='Não foi possível copiar automaticamente. As instruções permanecem visíveis acima.'}
+ });
+ const headerH1=page.querySelector('h1');
+ if(headerH1)headerH1.insertAdjacentElement('afterend',root);else page.prepend(root);
+}
+
 function openFrame(html){
  for(const domain of ['actions','packing'])read(domain);
  const frame=$('viewer'),safe=sanitizeRouteHtml(html);
@@ -520,6 +733,7 @@ function openFrame(html){
   }
   frameReady=true;
   try{installEmergencyContacts(doc)}catch(e){console.warn('Contatos de emergencia:',e)}
+  try{installFamilyReunionPlan(doc)}catch(e){console.warn('Plano familiar de reencontro:',e)}
   installPdfAttachments(doc).catch(e=>console.warn('Comprovantes:',e));
   // A area Fotos do local aceita imagens; comprovantes PDF ficam em Docs.
   // Sao incorporados ao HTML local, nao sincronizados automaticamente entre contas.
