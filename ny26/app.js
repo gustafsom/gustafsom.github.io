@@ -70,11 +70,51 @@ const boardingPassCss=
  '.ny26-bp-card h3{font-size:15px!important}'+
  '@media(max-width:580px){.ny26-bp-grid{grid-template-columns:1fr}}';
 
+const NY26_PACKING_UNIFIED_RENDER="function render(){\n var t=state.items,grouped={},groups=[];\n function keyFor(x){return String(x.category||'').trim().toLocaleLowerCase('pt-BR')+'|'+String(x.title||'').trim().toLocaleLowerCase('pt-BR')}\n t.forEach(function(x){var key=keyFor(x);if(!grouped[key]){grouped[key]={key:key,items:[],title:x.title,category:x.category};groups.push(grouped[key])}grouped[key].items.push(x)});\n function counts(g){var c=[0,0,0,0];g.items.forEach(function(x){var n=Number(x.status)||0;c[n>=0&&n<=3?n:0]++});return c}\n var packed=0,prepared=0,dispensed=0;\n groups.forEach(function(g){var c=counts(g),n=g.items.length;if(c[2]===n)packed++;else if(c[3]===n)dispensed++;else if(c[1]+c[2]===n)prepared++});\n el('pk-count').textContent=groups.length;\n el('pk-prep').textContent=prepared;\n el('pk-packed').textContent=packed;\n el('pk-left').textContent=groups.length-packed-dispensed;\n el('pk-bar').style.width=(groups.length?100*(packed+dispensed)/groups.length:0)+'%';\n groups.sort(function(a,b){return (a.items.every(function(x){return x.priority==='avaliar'}))-(b.items.every(function(x){return x.priority==='avaliar'}))||a.category.localeCompare(b.category,'pt-BR')||a.title.localeCompare(b.title,'pt-BR')});\n var visible=groups.filter(function(g){\n  var c=counts(g),n=g.items.length;\n  if(category!=='all'&&g.category!==category)return false;\n  if(search&&!g.items.some(function(x){return (x.title+' '+x.note+' '+x.bag+' '+x.category).toLowerCase().includes(search)}))return false;\n  if(filter==='todo'&&!c[0])return false;\n  if(filter==='prepared'&&!c[1])return false;\n  if(filter==='packed'&&!c[2])return false;\n  if(filter==='dispensed'&&!c[3])return false;\n  if(filter==='active'&&c[2]+c[3]===n)return false;\n  return true;\n });\n var output='<div class=\"pk-unified-head\">🧳 Checklist único da família <small>'+visible.length+' de '+groups.length+' itens</small></div><div class=\"pk-items pk-unified-items\">';\n visible.forEach(function(g){\n  var c=counts(g),n=g.items.length,q=g.items.reduce(function(v,x){return v+(Number(x.qty)||1)},0);\n  var complete=c[2]===n,allSep=c[1]+c[2]===n,allDisp=c[3]===n,allEmpty=c[0]===n;\n  var label=complete?'Na mala':allDisp?'Dispensado':allSep?'Separado':allEmpty?'A separar':'Parcial';\n  var cls=complete?'packed':allDisp?'dispensed':allSep?'prepared':'';\n  var parts=[];if(c[2])parts.push(c[2]+' na mala');if(c[1])parts.push(c[1]+' separado(s)');if(c[0])parts.push(c[0]+' a separar');if(c[3])parts.push(c[3]+' dispensado(s)');\n  var bags=g.items.map(function(x){return x.bag}).filter(function(x,i,a){return x&&a.indexOf(x)===i});\n  var notes=g.items.map(function(x){return x.note||''}).filter(Boolean).filter(function(x,i,a){return a.indexOf(x)===i});\n  var optional=g.items.every(function(x){return x.priority==='avaliar'});\n  var encoded=encodeURIComponent(g.key),data=safe(encoded);\n  output+='<div class=\"pk-line pk-unified-line\" data-pk-group=\"'+data+'\" data-stage=\"'+(complete?2:allDisp?3:allSep?1:0)+'\">'+\n   '<div class=\"pk-line-text\"><strong>'+safe(g.title)+' <em>×'+safe(q)+'</em></strong><small>'+safe(g.category)+\n   ' · '+(n>1?n+' registros reunidos':'1 registro')+\n   (bags.length?' · '+safe(bags.slice(0,3).join(' / '))+(bags.length>3?'…':''):'')+\n   '</small></div><div class=\"pk-status-chip '+cls+'\">'+label+'</div>'+\n   (n>1?'<div class=\"pk-unified-breakdown\">'+safe(parts.join(' · '))+'</div>':'')+\n   (optional?'<div class=\"pk-mini-alert\">Opcional — decida se vale o espaço</div>':'')+\n   (notes.length?'<div class=\"pk-info\">'+safe(notes[0])+(notes.length>1?' · Há orientações adicionais nos registros originais.':'')+'</div>':'')+\n   '<div class=\"pk-item-btns\">'+\n   '<button type=\"button\" class=\"pk-stage\" data-pk-unified=\"'+data+'\" data-pk-value=\"1\">✓ Separado</button>'+\n   '<button type=\"button\" class=\"pk-stage'+(complete?' pk-packed':'')+'\" data-pk-unified=\"'+data+'\" data-pk-value=\"2\">🧳 Na mala</button>'+\n   '<button type=\"button\" class=\"pk-stage\" data-pk-unified=\"'+data+'\" data-pk-value=\"3\">— Dispensar</button>'+\n   '<button type=\"button\" class=\"pk-stage\" data-pk-unified=\"'+data+'\" data-pk-value=\"0\">↶ Reabrir</button>'+\n   (n===1?'<button type=\"button\" data-pk-edit=\"'+safe(g.items[0].id)+'\">✎ Editar</button>':'')+\n   (n===1&&g.items[0].id.indexOf('custom-')===0?'<button type=\"button\" data-pk-delete=\"'+safe(g.items[0].id)+'\">Excluir</button>':'')+\n   '</div></div>';\n });\n output+='</div>';\n el('pk-list').innerHTML=visible.length?output:'<div class=\"pk-empty\">Nenhum item corresponde ao filtro. Escolha “Todos” ou adicione um novo.</div>';\n}";
+
+function unifyPackingMarkup(source){
+ // Patches only the in-memory private HTML. Retains the original checklist IDs
+ // and full per-person records in Firestore/localStorage; only UI is unified.
+ const begin=source.indexOf('function render(){var t=state.items,');
+ const end=begin<0?-1:source.indexOf('\nfunction editor(id){',begin);
+ const eventNeedle="if(id){var a=state.items.find(function(x){return x.id===id});if(a){a.status=Number(b.getAttribute('data-pk-value'));saveState()}}else if(ed)";
+ if(begin<0||end<0||!source.includes(eventNeedle)||!source.includes('id="pk-person"'))return source;
+ source=source.slice(0,begin)+NY26_PACKING_UNIFIED_RENDER+source.slice(end);
+ const handler="var gkey=b.getAttribute('data-pk-unified');"+
+  "if(gkey){var key=decodeURIComponent(gkey),value=Number(b.getAttribute('data-pk-value'));"+
+  "var matches=state.items.filter(function(x){return (String(x.category||'').trim().toLocaleLowerCase('pt-BR')+'|'+String(x.title||'').trim().toLocaleLowerCase('pt-BR'))===key});"+
+  "if(!matches.length)return;"+
+  "if((value===0||value===3)&&matches.some(function(x){return x.status===2})&&!confirm('Esta ação altera itens já marcados Na mala. Deseja continuar?'))return;"+
+  "if(value===3&&!matches.every(function(x){return x.status===0||x.status===3})&&!confirm('Dispensar todos os registros deste item?'))return;"+
+  "matches.forEach(function(x){if(value===1&&x.status===2)return;x.status=value});saveState();return;}else ";
+ source=source.replace(eventNeedle,handler+eventNeedle);
+ source=source.replace("person='all',filter='todo',category='all'","person='all',filter='all',category='all'");
+ source=source.replace(/<label>Quem\?<select id="pk-person">[\s\S]*?<\/select><\/label>/,'<label style="display:none">Quem?<select id="pk-person"><option value="all">Todos</option></select></label>');
+ source=source.replace(/<option value="all">Todos<\/option><option selected="" value="todo">A separar<\/option>/,'<option selected="" value="all">Todos</option><option value="todo">A separar</option>');
+ source=source.replace(/<label>Para quem<select id="pk-who">/,'<label style="display:none">Para quem<select id="pk-who">');
+ source=source.replace('🧳 Minha mala','🧳 Mala da família');
+ source=source.replace('Separe os itens de cada pessoa. Toque','Cada item aparece uma única vez para toda a família. Toque');
+ source=source.replace('Separe os itens de cada pessoa.','Separe os itens da família.');
+ source=source.replace('4 pessoas · 3 malas de cabine + 4 mochilas.','Lista única · 3 malas de cabine + 4 mochilas.');
+ const extraStyle='<style id="ny26-pk-unified-style">'+
+ '.pk-unified-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;background:#edf4f9;border-radius:12px;margin:12px 0;font-weight:800;font-size:14px}'+
+ '.pk-unified-head small{font-weight:600;font-size:12px;color:#49677d}'+
+ '.pk-unified-items{display:grid;grid-template-columns:1fr;gap:10px}'+
+ '.pk-unified-line{margin:0!important}'+
+ '.pk-unified-breakdown{padding:6px 0;font:700 12px/1.5 system-ui,sans-serif;color:#4c6273}'+
+ '.pk-unified-line .pk-item-btns{display:flex;gap:7px;flex-wrap:wrap}'+
+ '@media(min-width:800px){.pk-unified-items{grid-template-columns:repeat(2,minmax(0,1fr))}}'+
+ '</style>';
+ source=source.replace(/<\/head>/i,extraStyle+'</head>');
+ return source;
+}
+
 function sanitizeRouteHtml(source){
  // Documents loaded with iframe.srcdoc inherit the *parent URL as base*.
  // Without an explicit base, links such as #mala can navigate the iframe to
  // /ny26/#mala, recursively loading this application inside itself.
  let h=renameChildren(String(source||''));
+ h=unifyPackingMarkup(h);
  h=h.replace(/<script>\s*\/\*\s*NY26 v7[^\n]*\n[\s\S]*?<\/script>/gi,'');
  // Atualiza orientacoes legadas de exportacao manual que nao se aplicam a PWA.
  h=h.replace(/Sem comprovante incorporado\. Abra o guia no computador, adicione o arquivo nesta categoria e exporte uma nova cópia\./g,'Nenhum comprovante anexado nesta categoria. Use o botão de adicionar.');
