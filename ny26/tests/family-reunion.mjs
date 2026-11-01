@@ -30,8 +30,8 @@ const sandbox={
 };
 const install=vm.runInNewContext('('+app.slice(a,b).trim()+')',sandbox);
 install(doc);
-assert.ok(page.inserted,'Painel nao montado no Apoio');
-const root=page.inserted.node;
+assert.ok(heading.inserted,'Painel nao montado apos o titulo Apoio');
+const root=heading.inserted.node;
 assert.equal(root.id,'ny26-reunion-plan');
 assert.ok(root.children.some(x=>String(x.textContent).includes('NÃO sai procurando sozinho')));
 const details=all.filter(x=>x.tag==='details');
