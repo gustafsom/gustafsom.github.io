@@ -357,6 +357,111 @@ async function installPdfAttachments(doc){
  }
 }
 
+
+const NY26_EMERGENCY_CONTACTS=[
+ {id:'usa',name:'Emergência imediata nos EUA',region:'Polícia, bombeiros ou ambulância — qualquer cidade da viagem',
+  number:'911',tel:'911',kind:'urgent'},
+ {id:'ny',name:'Consulado do Brasil — Nova York',region:'Nova York, Nova Jersey e Pensilvânia (Filadélfia)',
+  number:'+1 (646) 403-2676',tel:'+16464032676',kind:'consulate',
+  general:'+1 (917) 943-7155',generalTel:'+19179437155'},
+ {id:'dc',name:'Consulado do Brasil — Washington, DC',region:'Washington, Maryland e Delaware, entre outras áreas',
+  number:'+1 (202) 714-8017',tel:'+12027148017',kind:'consulate',
+  general:'+1 (202) 461-3000',generalTel:'+12024613000'},
+ {id:'br',name:'Plantão do Itamaraty — Brasília',region:'Principalmente para familiares no Brasil comunicarem emergência no exterior fora do horário comercial',
+  number:'+55 (61) 98260-0610',tel:'+5561982600610',kind:'consulate'}
+];
+function installEmergencyContacts(doc){
+ // Injected into the private itinerary when its iframe loads. Nothing from
+ // Firebase or personal itineraries is written to the public repository.
+ const page=doc.getElementById('apoio')||doc.querySelector('[data-view="apoio"]');
+ if(!page||doc.getElementById('ny26-emergency-contacts'))return;
+ const sheet=doc.createElement('style');
+ sheet.id='ny26-emergency-contacts-css';
+ sheet.textContent=[
+  '#ny26-emergency-contacts{margin:12px 0 23px;padding:14px;border:1px solid #b8cfdd;border-radius:14px;background:#f4f9fc;color:#163b52}',
+  '#ny26-emergency-contacts *{box-sizing:border-box}',
+  '#ny26-emergency-contacts h2{font-size:18px;line-height:1.3;margin:0 0 7px;color:#13394f}',
+  '#ny26-emergency-contacts .ny26-e-intro{font-size:13px;line-height:1.5;margin:0 0 13px;color:#426278}',
+  '#ny26-emergency-contacts .ny26-e-list{display:grid;grid-template-columns:1fr;gap:10px}',
+  '#ny26-emergency-contacts .ny26-e-card{background:#fff;border:1px solid #d7e4ed;border-radius:12px;padding:12px;min-width:0}',
+  '#ny26-emergency-contacts .ny26-e-card[data-kind="urgent"]{border:2px solid #c84b43;background:#fff7f6}',
+  '#ny26-emergency-contacts h3{font-size:15px;margin:0 0 5px;color:#173d57;line-height:1.35}',
+  '#ny26-emergency-contacts .ny26-e-region{font-size:12px;color:#566e7c;line-height:1.45;margin:0 0 9px}',
+  '#ny26-emergency-contacts .ny26-e-number{font-size:19px;font-weight:800;letter-spacing:.2px;margin:0 0 10px;overflow-wrap:anywhere;color:#0e476c}',
+  '#ny26-emergency-contacts .ny26-e-card[data-kind="urgent"] .ny26-e-number{font-size:27px;color:#ac2424}',
+  '#ny26-emergency-contacts .ny26-e-buttons{display:flex;gap:9px;flex-wrap:wrap}',
+  '#ny26-emergency-contacts .ny26-e-call,#ny26-emergency-contacts .ny26-e-copy{display:inline-flex;align-items:center;justify-content:center;min-height:45px;border-radius:9px;padding:10px 14px;font:700 13px system-ui,sans-serif;text-decoration:none!important;cursor:pointer}',
+  '#ny26-emergency-contacts .ny26-e-call{background:#11658c;color:#fff!important;border:1px solid #11658c}',
+  '#ny26-emergency-contacts .ny26-e-card[data-kind="urgent"] .ny26-e-call{background:#af2828;border-color:#af2828}',
+  '#ny26-emergency-contacts .ny26-e-copy{border:1px solid #9ab9ca;background:#fff;color:#244f64}',
+  '#ny26-emergency-contacts .ny26-e-general{font-size:12px;margin:10px 0 0;line-height:1.45}',
+  '#ny26-emergency-contacts .ny26-e-general a{color:#17638b;text-decoration:underline}',
+  '#ny26-emergency-contacts .ny26-e-footer{font-size:12px;line-height:1.5;color:#415c6e;margin:13px 0 0}',
+  '#ny26-emergency-contacts .ny26-e-sources{font-size:11px;line-height:1.6;margin:9px 0 0}',
+  '#ny26-emergency-contacts .ny26-e-sources a{color:#17638b}'
+ ].join('\n');
+ doc.head.appendChild(sheet);
+ const wrapper=doc.createElement('div');
+ wrapper.id='ny26-emergency-contacts';
+ wrapper.setAttribute('aria-label','Telefones úteis e emergências durante a viagem');
+ const header=doc.createElement('h2');header.textContent='☎️ Telefones de emergência — Estados Unidos';
+ const intro=doc.createElement('p');intro.className='ny26-e-intro';
+ intro.textContent='Contatos acessíveis mesmo sem internet. Toque em Ligar para abrir o discador. O 911 é a primeira opção para emergência imediata.';
+ const list=doc.createElement('div');list.className='ny26-e-list';
+ for(const item of NY26_EMERGENCY_CONTACTS){
+  const card=doc.createElement('div');card.className='ny26-e-card';card.setAttribute('data-kind',item.kind);
+  card.setAttribute('data-contact',item.id);
+  const title=doc.createElement('h3');title.textContent=item.name;
+  const region=doc.createElement('p');region.className='ny26-e-region';region.textContent=item.region;
+  const num=doc.createElement('p');num.className='ny26-e-number';num.textContent=item.number;
+  const buttons=doc.createElement('div');buttons.className='ny26-e-buttons';
+  const call=doc.createElement('a');call.className='ny26-e-call';call.href='tel:'+item.tel;
+  call.textContent='📞 Ligar '+(item.id==='usa'?'911':'agora');call.setAttribute('aria-label','Ligar para '+item.name+': '+item.number);
+  const copy=doc.createElement('button');copy.type='button';copy.className='ny26-e-copy';copy.textContent='Copiar número';
+  copy.setAttribute('aria-label','Copiar telefone '+item.number);
+  copy.addEventListener('click',async()=>{
+   try{
+    if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');
+    await navigator.clipboard.writeText(item.tel);
+    copy.textContent='✅ Copiado';
+   }catch(e){
+    copy.textContent='Segure e copie o número acima';
+   }
+  });
+  buttons.append(call,copy);
+  card.append(title,region,num,buttons);
+  if(item.general){
+   const general=doc.createElement('p');general.className='ny26-e-general';
+   general.append(doc.createTextNode('Telefone geral (expediente): '));
+   const generalLink=doc.createElement('a');generalLink.href='tel:'+item.generalTel;generalLink.textContent=item.general;
+   general.appendChild(generalLink);card.appendChild(general);
+  }
+  list.appendChild(card);
+ }
+ const footer=doc.createElement('p');footer.className='ny26-e-footer';
+ footer.textContent='⚠️ Os plantões consulares destinam-se a casos graves, como acidentes, hospitalização, prisão, violência e desaparecimento. Não substituem a polícia e os serviços médicos locais. O número de Brasília atende especialmente pedidos de assistência feitos por familiares no Brasil.';
+ const sources=doc.createElement('p');sources.className='ny26-e-sources';
+ sources.append(doc.createTextNode('Fontes oficiais, verificadas em 01/11/2026: '));
+ const citations=[
+  ['Contatos dos consulados (Departamento de Estado dos EUA)',
+   'https://travel.state.gov/content/travel/en/consularnotification/ConsularNotificationandAccess/Brazil.html'],
+  ['Jurisdição consular brasileira','https://econsular.itamaraty.gov.br/'],
+  ['Emergências consulares (Itamaraty)','https://www.gov.br/mre/pt-br/assuntos/portal-consular/quem-contatar/assistencia-a-brasileiros-que-se-encontram-no-exterior/assistencia-a-brasileiros-que-se-encontram-no-exterior-emergencias']
+ ];
+ citations.forEach(([label,url],i)=>{
+  const a=doc.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=label;
+  if(i)sources.append(doc.createTextNode(' · '));sources.appendChild(a);
+ });
+ wrapper.append(header,intro,list,footer,sources);
+ const mainHeading=page.querySelector('h1');
+ if(mainHeading)mainHeading.insertAdjacentElement('afterend',wrapper);
+ else page.prepend(wrapper);
+ // Avoid showing the old incomplete emergency notice twice. It stays in
+ // the stored original document; the current version is runtime-only.
+ const legacy=page.querySelector('.ny26-v140-critical');
+ if(legacy)legacy.hidden=true;
+}
+
 function openFrame(html){
  for(const domain of ['actions','packing'])read(domain);
  const frame=$('viewer'),safe=sanitizeRouteHtml(html);
@@ -373,6 +478,7 @@ function openFrame(html){
    return;
   }
   frameReady=true;
+  try{installEmergencyContacts(doc)}catch(e){console.warn('Contatos de emergencia:',e)}
   installPdfAttachments(doc).catch(e=>console.warn('Comprovantes:',e));
   // A area Fotos do local aceita imagens; comprovantes PDF ficam em Docs.
   // Sao incorporados ao HTML local, nao sincronizados automaticamente entre contas.
