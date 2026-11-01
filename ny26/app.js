@@ -380,6 +380,7 @@ function installEmergencyContacts(doc){
  sheet.textContent=[
   '#ny26-emergency-contacts{margin:12px 0 23px;padding:14px;border:1px solid #b8cfdd;border-radius:14px;background:#f4f9fc;color:#163b52}',
   '#ny26-emergency-contacts *{box-sizing:border-box}',
+  '.ny26-v140-critical[hidden]{display:none!important}',
   '#ny26-emergency-contacts h2{font-size:18px;line-height:1.3;margin:0 0 7px;color:#13394f}',
   '#ny26-emergency-contacts .ny26-e-intro{font-size:13px;line-height:1.5;margin:0 0 13px;color:#426278}',
   '#ny26-emergency-contacts .ny26-e-list{display:grid;grid-template-columns:1fr;gap:10px}',
