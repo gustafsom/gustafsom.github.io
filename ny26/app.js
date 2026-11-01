@@ -109,12 +109,50 @@ function unifyPackingMarkup(source){
  return source;
 }
 
+
+// Add a dedicated menu/page to the private in-memory itinerary. This does not
+// replace the document in Firestore and does not change checklist/storage IDs.
+function addEmergencyMenuToRouteHtml(html){
+ let h=String(html||'');
+ if(!/<section\b[^>]*\bdata-view=["']apoio["']/i.test(h))return h;
+ if(!/<section\b[^>]*\bid=["']emergencia["']/i.test(h)){
+  const page='<section class="page" id="emergencia" data-view="emergencia">'+
+   '<h1>🚨 Emergência</h1>'+
+   '<p class="ny26-emergency-lead">Emergências médicas, polícia, bombeiros, '+
+   'consulados e plano de reencontro da família. Em perigo imediato nos EUA, ligue para '+
+   '<a href="tel:911"><strong>911</strong></a>.</p>'+
+   '<p class="toplink"><a href="#apoio">ℹ️ Outras informações de apoio</a></p></section>';
+  h=h.replace(/<section\b[^>]*\bdata-view=["']apoio["'][^>]*>/i,page+'function sanitizeRouteHtml(source){');
+ }
+ if(!/<a\b[^>]*\bdata-view=["']emergencia["']/i.test(h)){
+  h=h.replace(/<a\b[^>]*\bdata-view=["']apoio["'][^>]*>/i,
+   '<a class="daytab ny26-emergency-tab" data-view="emergencia" href="#emergencia">🚨 Emergência</a>function sanitizeRouteHtml(source){');
+ }
+ // The original standalone HTML has an explicit allow-list for #hash routes.
+ // A link without this change would fall back to the current day's itinerary.
+ if(!h.includes("hash==='emergencia'||hash==='apoio'||")){
+  h=h.replace("hash==='apoio'||","hash==='emergencia'||hash==='apoio'||");
+ }
+ h=h.replace(/(<a\b[^>]*\bdata-view=["']apoio["'][^>]*>)🆘 Apoio/i,'$1ℹ️ Apoio');
+ h=h.replace('<h1>🆘 Apoio e informações úteis</h1>','<h1>ℹ️ Apoio e informações úteis</h1>');
+ if(!h.includes('id="ny26-emergency-menu-style"')){
+  const css='<style id="ny26-emergency-menu-style">'+
+   '.nav .ny26-emergency-tab{font-weight:800;color:#a52727;background:#fff0ef;border:1px solid #e9b6b2}'+
+   '.nav .ny26-emergency-tab.selected{background:#b12d2d!important;color:#fff!important;border-color:#b12d2d!important}'+
+   '#emergencia>.ny26-emergency-lead{background:#fff5e9;border:1px solid #f0d9b4;border-radius:10px;padding:12px;line-height:1.55}'+
+   '</style>';
+  h=h.replace(/<\/head>/i,css+'</head>');
+ }
+ return h;
+}
+
 function sanitizeRouteHtml(source){
  // Documents loaded with iframe.srcdoc inherit the *parent URL as base*.
  // Without an explicit base, links such as #mala can navigate the iframe to
  // /ny26/#mala, recursively loading this application inside itself.
  let h=renameChildren(String(source||''));
  h=unifyPackingMarkup(h);
+ h=addEmergencyMenuToRouteHtml(h);
  h=h.replace(/<script>\s*\/\*\s*NY26 v7[^\n]*\n[\s\S]*?<\/script>/gi,'');
  // Atualiza orientacoes legadas de exportacao manual que nao se aplicam a PWA.
  h=h.replace(/Sem comprovante incorporado\. Abra o guia no computador, adicione o arquivo nesta categoria e exporte uma nova cópia\./g,'Nenhum comprovante anexado nesta categoria. Use o botão de adicionar.');
@@ -413,7 +451,7 @@ const NY26_EMERGENCY_CONTACTS=[
 function installEmergencyContacts(doc){
  // Injected into the private itinerary when its iframe loads. Nothing from
  // Firebase or personal itineraries is written to the public repository.
- const page=doc.getElementById('apoio')||doc.querySelector('[data-view="apoio"]');
+ const page=doc.getElementById('emergencia')||doc.querySelector('[data-view="emergencia"]')||doc.getElementById('apoio');
  if(!page||doc.getElementById('ny26-emergency-contacts'))return;
  const sheet=doc.createElement('style');
  sheet.id='ny26-emergency-contacts-css';
@@ -507,7 +545,7 @@ function installEmergencyContacts(doc){
 function installFamilyReunionPlan(doc){
  // NY 12 family protocol. Personal telephone numbers are only stored under
  // this authenticated user's browser profile; never in public GitHub files.
- const page=doc.getElementById('apoio')||doc.querySelector('[data-view="apoio"]');
+ const page=doc.getElementById('emergencia')||doc.querySelector('[data-view="emergencia"]')||doc.getElementById('apoio');
  if(!page||doc.getElementById('ny26-reunion-plan')||!user?.uid)return;
  const view=doc.defaultView;
  const key='ny26-reunion-contact-v1:'+TRIP+':'+user.uid;
@@ -712,8 +750,11 @@ function installFamilyReunionPlan(doc){
    status.textContent='✅ Plano de reencontro copiado.';
   }catch(e){status.textContent='Não foi possível copiar automaticamente. As instruções permanecem visíveis acima.'}
  });
+ const contacts=page.querySelector('#ny26-emergency-contacts');
  const headerH1=page.querySelector('h1');
- if(headerH1)headerH1.insertAdjacentElement('afterend',root);else page.prepend(root);
+ if(contacts)contacts.insertAdjacentElement('afterend',root);
+ else if(headerH1)headerH1.insertAdjacentElement('afterend',root);
+ else page.prepend(root);
 }
 
 function openFrame(html){
@@ -734,6 +775,7 @@ function openFrame(html){
   frameReady=true;
   try{installEmergencyContacts(doc)}catch(e){console.warn('Contatos de emergencia:',e)}
   try{installFamilyReunionPlan(doc)}catch(e){console.warn('Plano familiar de reencontro:',e)}
+  try{tidyLegacyEmergencySupport(doc)}catch(e){console.warn('Menu exclusivo de emergencia:',e)}
   installPdfAttachments(doc).catch(e=>console.warn('Comprovantes:',e));
   // A area Fotos do local aceita imagens; comprovantes PDF ficam em Docs.
   // Sao incorporados ao HTML local, nao sincronizados automaticamente entre contas.
@@ -1063,6 +1105,37 @@ $('reset-password').onclick=async()=>{
 $('show-settings').onclick=()=>!$('settings').classList.contains('hide')?returnFromSettings():user?settings():show('setup');
 $('open-settings').onclick=settings;
 $('back-settings').onclick=returnFromSettings;
+function tidyLegacyEmergencySupport(doc){
+ if(!doc.getElementById('emergencia'))return;
+ const apoio=doc.getElementById('apoio');
+ if(!apoio)return;
+ // Remove only legacy duplicate instructions; preserve hotels, maps, transport,
+ // travel insurance and other support content.
+ apoio.querySelector('.ny26-v140-critical')?.remove();
+ apoio.querySelectorAll('.support-card').forEach(card=>{
+  const head=card.querySelector('h3');
+  if(!head||!/^🆘\s*Emergência/.test(head.textContent.trim()))return;
+  head.textContent='🚨 Contatos e plano de emergência';
+  const link=doc.createElement('a');link.href='#emergencia';
+  link.textContent='Abrir Emergência: 911, consulados e plano de reencontro';
+  for(const el of Array.from(card.children))if(el!==head)el.remove();
+  card.appendChild(link);
+ });
+}
+function openEmergency(){
+ if(!user){show('setup');return}
+ const frame=$('viewer'),doc=frame.contentDocument;
+ if(!frameReady||!doc?.getElementById('emergencia')){
+  $msg('settings-msg','A página de emergência ainda não está disponível. Abra o roteiro primeiro.');
+  show('waiting');return;
+ }
+ document.body.classList.add('running');
+ const win=frame.contentWindow,hash='#emergencia';
+ if(win.location.hash!==hash)win.location.hash=hash;
+ else win.dispatchEvent(new win.Event('hashchange'));
+}
+$('open-emergency').onclick=openEmergency;
+
 function openDocuments(){
   if(!user){show('setup');return}
   const frame=$('viewer');
