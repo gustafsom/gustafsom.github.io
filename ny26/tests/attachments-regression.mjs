@@ -7,7 +7,7 @@ const worker=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
 const start=app.indexOf('function sanitizeRouteHtml(source){');
 const end=app.indexOf('// Attachments are private',start);
 assert.ok(start>=0&&end>start,'Sanitizacao do HTML nao encontrada');
-const sanitize=vm.runInNewContext('('+app.slice(start,end).trim()+')',{renameChildren:x=>x,unifyPackingMarkup:x=>x});
+const sanitize=vm.runInNewContext('('+app.slice(start,end).trim()+')',{renameChildren:x=>x,unifyPackingMarkup:x=>x,addEmergencyMenuToRouteHtml:x=>x});
 const marker="try{\n document.body.classList.add('js-ready');readStatic();refreshAll();loadDone();";
 const basic='<html><head></head><body><script>(function(){var docs={voos:[],hospedagem:[]};function refreshAll(){}'+marker+'</script><div id="documentos"></div></body></html>';
 const sanitized=sanitize(basic);
