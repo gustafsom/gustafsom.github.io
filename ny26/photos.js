@@ -169,6 +169,12 @@
    const step=input.getAttribute('data-photo-upload'),section=getPhotoSection(input);
    if(!step||!section||sections.has(step))continue;
    sections.set(step,section);buttons.set(step,input);
+   // Atualiza o rótulo sem substituir o input, preservando o seletor de arquivos.
+   const uploadLabel=input.closest('label');
+   if(uploadLabel){
+    const oldText=Array.from(uploadLabel.childNodes||[]).find(n=>n.nodeType===3&&/Adicionar foto/i.test(n.textContent||''));
+    if(oldText)oldText.textContent=step==='etapa-1-1'?'＋ Anexar imagem ou mapa do AirTrain':'＋ Adicionar foto ou mapa';
+   }
    const description=section.querySelector('.sheet-photo-tools');
    if(description)description.textContent='Fotos e mapas anexados ficam disponíveis logo abaixo. Toque na miniatura para ampliar. São guardados neste aparelho, mesmo após atualizar o roteiro.';
    const gallery=doc.createElement('div');gallery.className='ny26-photo-gallery';gallery.setAttribute('data-photo-gallery',step);
