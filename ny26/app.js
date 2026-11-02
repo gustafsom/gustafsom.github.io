@@ -817,7 +817,7 @@ function openFrame(html){
    }
   }catch(e){console.warn('Inicialização da ficha:',e)}
   try{window.NY26RouteAdvice?.decorate(doc)}catch(e){console.warn('Guia de orientacoes:',e)}
-  try{window.NY26RouteEnhancements?.install(doc)}catch(e){console.warn('Ajustes de roteiro:',e)}
+  try{window.NY26RouteEnhancements?.install(doc,TRIP+':'+user.uid)}catch(e){console.warn('Ajustes de roteiro:',e)}
   if(window.ny26Snapshot)applySnapshot(window.ny26Snapshot);
  };
  frame.srcdoc=safe;
