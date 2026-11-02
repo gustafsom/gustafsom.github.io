@@ -32,7 +32,7 @@ const rules=[
  [/Pier\s*11|NYC Ferry.*DUMBO/i,'⛴️ Pier 11 → DUMBO',1,[
  'Pier 11 / Wall St: acesso em South St com Gouverneur Lane. É NYC Ferry, diferente da Statue City Cruises e do Staten Island Ferry.',
  'Verificar a linha East River e o horário Pier 11 → DUMBO / Fulton Ferry no app NYC Ferry. A travessia é curta, mas há deslocamento e espera no píer.',
- 'NYC Ferry requer passagem própria, separada do OMNY do metrô. Conferir quatro bilhetes.',
+ 'NYC Ferry requer passagem própria, separada do OMNY do metrô. É possível comprar no app NYC Ferry ou nas máquinas de venda; conferir quatro bilhetes antes de embarcar.',
  'No Veterans Day (11/11), checar eventual horário especial. 14h40–15h05 é janela de planejamento, NÃO horário confirmado de saída.',
  'Decisão: só usar o ferry se a espera permitir chegar a Brooklyn Heights Promenade perto das 16h15. Caso contrário, usar o plano B via metrô.'
  ],'https://www.ferry.nyc/routes-and-schedules/east-river/'],
@@ -63,6 +63,11 @@ const rules=[
  'Não entrar com comida de fora. Água engarrafada é permitida.',
  'Todos passam pela inspeção e devem ter passes com horário marcado. Levar os quatro comprovantes acessíveis.'
  ],'https://airandspace.si.edu/visit/museum-dc/visiting-tips'],
+ [/Morgan Library|Morgan Museum/i,'⚠️ Morgan Library: bolsas, comida e horário',1,[
+ 'Mochilas e bolsas grandes precisam ficar no guarda-volumes; malas de viagem nem sequer podem entrar ou ser guardadas.',
+ 'Não levar alimentos ou bebidas de fora; no museu não é permitido comer ou beber. Guarda-chuva fora de bolsa compatível deve ser guardado.',
+ 'A entrada antes da hora do ingresso não é permitida e a entrada tardia não é garantida. Conferir os quatro ingressos gratuitos antes de sair.'
+ ],'https://www.themorgan.org/visit/guidelines'],
  [/Memorial.*9\/11|9\/11.*Memorial/i,'⚠️ 9/11 Memorial: restrições',1,[
  'Não levar alimentos/bebidas externos nem vidro para o memorial; respeitar o silêncio e não colocar objetos nas piscinas.',
  'Museu é uma visita separada, com ingresso e inspeção próprios. Não depender dos banheiros internos sem entrada para o museu.'
@@ -86,7 +91,7 @@ function clean(doc){
  }
  // Big Button e parada excluida, mas nao remover textos sobre outros atrativos.
  for(const step of doc.querySelectorAll('article.step')){
-  if(/^big button\b/i.test(name(step)))step.remove();
+  if(/^big button\b/i.test(name(step))){const id=step.id;step.remove();if(id)doc.getElementById('ficha-'+id)?.remove()}
  }
  for(const el of doc.querySelectorAll('article.step p,article.step .note,.sheet-text p')){
   if(el.children.length===0&&!trim(el.textContent))el.remove();
