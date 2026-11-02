@@ -91,7 +91,7 @@ function clean(doc){
  }
  // Big Button e parada excluida, mas nao remover textos sobre outros atrativos.
  for(const step of doc.querySelectorAll('article.step')){
-  if(/^big button\b/i.test(name(step))){const id=step.id;step.remove();if(id)doc.getElementById('ficha-'+id)?.remove()}
+  if(/^big button\b|fort mchenry/i.test(name(step))){const id=step.id;step.remove();if(id)doc.getElementById('ficha-'+id)?.remove()}
  }
  for(const el of doc.querySelectorAll('article.step p,article.step .note,.sheet-text p')){
   if(el.children.length===0&&!trim(el.textContent))el.remove();
