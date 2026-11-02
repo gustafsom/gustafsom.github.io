@@ -19,6 +19,7 @@ const css=[
 '.ny26-live label{display:flex;flex-direction:column;gap:4px;min-width:120px;flex:1;font-weight:700}',
 '.ny26-live input,.ny26-live select{width:100%;min-width:0;padding:8px;border:1px solid #a3bdcb;border-radius:8px;color:#183a50;background:white;font:500 13px system-ui,sans-serif}',
 '.ny26-live-result{margin-top:11px;padding:9px;border-radius:8px;background:#fff}',
+'.ny26-done-record{display:inline-block;margin:4px 8px;padding:3px 7px;background:#e7f3eb;border-radius:6px;color:#1c6139;font:700 11px/1.4 system-ui,sans-serif}.ny26-done-record[hidden]{display:none!important}',
 '@media(max-width:520px){article.step .actions{display:flex!important;flex-wrap:wrap!important;gap:7px!important}article.step .actions>*{max-width:100%;white-space:normal!important}}'
 ].join('');
 const trim=v=>String(v||'').replace(/\s+/g,' ').trim();
@@ -228,12 +229,26 @@ function installCompletionClock(doc,scope){
   }
  }
  const listeners=new Set();
+ function showTime(step){
+  const input=step?.querySelector('input.donecheck[data-step]');if(!input)return;
+  const label=input.closest('label.donecontrol,label');if(!label)return;
+  let marker=step.querySelector('.ny26-done-record');
+  if(!marker){
+   marker=doc.createElement('small');marker.className='ny26-done-record';
+   label.insertAdjacentElement('afterend',marker);
+  }
+  const stamp=input.checked?read(step):null;
+  marker.hidden=stamp===null;
+  marker.textContent=stamp!==null?'Concluído às '+nyTime(stamp).label+' (NY)':'';
+ }
+ for(const step of doc.querySelectorAll('article.step'))showTime(step);
  // Capturing change reads checkbox state before the legacy bubbling saveDone().
  doc.addEventListener('change',ev=>{
   const input=ev.target;
   if(!input?.matches?.('input.donecheck[data-step]'))return;
   const step=input.closest('article.step');if(!step)return;
   write(step,input.checked);
+  showTime(step);
   listeners.forEach(notify=>{try{notify(step)}catch(e){console.warn('Roteiro dinamico:',e)}});
  },true);
  const api={read,subscribe:cb=>{listeners.add(cb);return()=>listeners.delete(cb)}};
