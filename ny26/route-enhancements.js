@@ -32,7 +32,7 @@ const rules=[
  [/Pier\s*11|NYC Ferry.*DUMBO/i,'⛴️ Pier 11 → DUMBO',1,[
  'Pier 11 / Wall St: acesso em South St com Gouverneur Lane. É NYC Ferry, diferente da Statue City Cruises e do Staten Island Ferry.',
  'Verificar a linha East River e o horário Pier 11 → DUMBO / Fulton Ferry no app NYC Ferry. A travessia é curta, mas há deslocamento e espera no píer.',
- 'NYC Ferry requer passagem própria, separada do OMNY do metrô. É possível comprar no app NYC Ferry ou nas máquinas de venda; conferir quatro bilhetes antes de embarcar.',
+ 'NYC Ferry exige passagem separada do OMNY do metrô; tarifa avulsa padrão informada: US$ 4,50 por passageiro (US$ 18 para quatro pagantes). Comprar no app ou nas máquinas e conferir os bilhetes.',
  'No Veterans Day (11/11), checar eventual horário especial. 14h40–15h05 é janela de planejamento, NÃO horário confirmado de saída.',
  'Decisão: só usar o ferry se a espera permitir chegar a Brooklyn Heights Promenade perto das 16h15. Caso contrário, usar o plano B via metrô.'
  ],'https://www.ferry.nyc/routes-and-schedules/east-river/'],
@@ -150,7 +150,7 @@ function addChoices(doc){
    if(/Times Square|Radio City/i.test(n)){
     choice(doc,step,'fim de passeio',[
      {id:'hotel',title:'Plano A — hotel',description:'Voltar diretamente ao The Chelsean para descansar.'},
-     {id:'times',title:'Plano B — Times Square',description:'Visitar no máximo 1 ou 2 lojas, se houver disposição, e então voltar ao hotel.'}
+     {id:'times',title:'Plano B — Times Square',description:'Visitar no máximo 1 ou 2 lojas. Voltar a pé ou, se cansados, conferir a linha 1 sentido Downtown de Times Sq–42 St até 23 St, seguida da caminhada curta ao The Chelsean.'}
     ]);
    }else if(/Brooklyn|DUMBO/i.test(n+' '+day)){
     choice(doc,step,'retorno do Brooklyn',[
