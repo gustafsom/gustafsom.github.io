@@ -773,6 +773,8 @@ function openFrame(html){
    return;
   }
   frameReady=true;
+  if(window.NY26Photos){window.NY26Photos.install(doc,TRIP+':'+user.uid)?.catch(e=>console.warn('Fotos de paradas:',e))}
+  else console.warn('Módulo de fotos offline não carregado');
   try{installEmergencyContacts(doc)}catch(e){console.warn('Contatos de emergencia:',e)}
   try{installFamilyReunionPlan(doc)}catch(e){console.warn('Plano familiar de reencontro:',e)}
   try{tidyLegacyEmergencySupport(doc)}catch(e){console.warn('Menu exclusivo de emergencia:',e)}
