@@ -84,6 +84,7 @@ function makeDoc(){
  };
  return latest;
 }
+win.indexedDB=indexedDB;
 const context={window:win,indexedDB,console:{warn:()=>{}},Date,Math,Promise,Error,Map,Array,Object,RegExp,Set,String,Number};
 vm.runInNewContext(script,context);
 assert.equal(typeof win.NY26Photos.install,'function');
