@@ -166,53 +166,155 @@ function addChoices(doc){
   }
  }
 }
+// Every new Feito click stores an actual UTC instant, then renders it in New York time.
+// The historical donecheck data remain untouched (the original HTML saves only booleans).
 const minutes=s=>{const m=/^(\d{1,2}):(\d{2})$/.exec(s||'');return m?+m[1]*60+(+m[2]):null};
 const time=n=>{n=((n%1440)+1440)%1440;return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')};
+const nyParts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',
+ year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+function nyTime(timestamp){
+ const parts=Object.fromEntries(nyParts.formatToParts(new Date(timestamp)).map(p=>[p.type,p.value]));
+ return {date:parts.year+'-'+parts.month+'-'+parts.day,
+  minute:Number(parts.hour)*60+Number(parts.minute),
+  label:parts.hour+':'+parts.minute};
+}
+function dayDate(day){
+ const head=trim([day.dataset.date,day.querySelector('h1,h2,.dayheader,.daytitle,.day-title')?.textContent,day.id].filter(Boolean).join(' '));
+ let m=head.match(/\b2026[-/]11[-/](0?[1-9]|1[0-9]|2[0-9]|30)\b/);
+ if(m)return '2026-11-'+m[1].padStart(2,'0');
+ m=head.match(/\b(0?[1-9]|1[0-9]|2[0-9]|30)[/-]11(?:[/-]2026)?\b/);
+ if(m)return '2026-11-'+m[1].padStart(2,'0');
+ m=head.match(/\b(0?[1-9]|1[0-9]|2[0-9]|30)\s*(?:de\s*)?(?:novembro|nov\b)/i);
+ if(m)return '2026-11-'+m[1].padStart(2,'0');
+ m=day.id?.match(/(?:^|[-_])(?:dia|day)[-_]?(0?[1-9]|1[0-9]|2[0-9]|30)(?:$|[-_])/i);
+ if(m)return '2026-11-'+m[1].padStart(2,'0');
+ return null;
+}
 function schedule(step){
- const t=trim(step.querySelector('.ny26-time-inline,.time,.step-time,.when,time')?.textContent||step.textContent.slice(0,90));
+ const t=trim(step.querySelector('.ny26-time-inline,.time,.step-time,.when,time')?.textContent||step.textContent.slice(0,120));
  const m=t.match(/(\d{1,2}:\d{2})\s*[–—-]\s*(\d{1,2}:\d{2})/);
  return m?{a:minutes(m[1]),b:minutes(m[2]),label:m[0]}:null;
 }
-function fixed(step){return /SUMMIT|Est[aá]tua.*Liberdade|Pedestal|Air and Space|Morgan Library|Voo|check.?in|embarque/i.test(name(step))||/HOR[AÁ]RIO FIXO|RESERVA PAGA/i.test(trim(step.querySelector('.flag,.tag,.status')?.textContent))}
-function planners(doc){
+function fixed(step){
+ return /SUMMIT|Est[aá]tua.*Liberdade|Pedestal|Air and Space|Morgan Library|Voo|check.?in|embarque/i.test(name(step))||
+ /HOR[AÁ]RIO FIXO|RESERVA PAGA/i.test(trim(step.querySelector('.flag,.tag,.status')?.textContent));
+}
+function installCompletionClock(doc,scope){
+ if(doc.__ny26CompletionClock)return doc.__ny26CompletionClock;
+ const prefix='ny26-completed-v1:'+String(scope||'local')+':';
+ const ephemeral=new Map();
+ function id(step){
+  const checkbox=step?.querySelector('input.donecheck[data-step]');
+  const token=checkbox?.getAttribute('data-step')||step?.id;
+  return token?prefix+token:null;
+ }
+ function read(step){
+  const key=id(step);if(!key)return null;
+  try{
+   const value=JSON.parse(localStorage.getItem(key)||'null');
+   if(value&&Number.isFinite(value.timestamp))return value.timestamp;
+  }catch{}
+  return ephemeral.get(key)||null;
+ }
+ function write(step,checked){
+  const key=id(step);if(!key)return;
+  if(checked){
+   const timestamp=Date.now();
+   ephemeral.set(key,timestamp);
+   try{localStorage.setItem(key,JSON.stringify({timestamp}))}catch{}
+  }else{
+   ephemeral.delete(key);
+   try{localStorage.removeItem(key)}catch{}
+  }
+ }
+ const listeners=new Set();
+ // Capturing change reads checkbox state before the legacy bubbling saveDone().
+ doc.addEventListener('change',ev=>{
+  const input=ev.target;
+  if(!input?.matches?.('input.donecheck[data-step]'))return;
+  const step=input.closest('article.step');if(!step)return;
+  write(step,input.checked);
+  listeners.forEach(notify=>{try{notify(step)}catch(e){console.warn('Roteiro dinamico:',e)}});
+ },true);
+ const api={read,subscribe:cb=>{listeners.add(cb);return()=>listeners.delete(cb)}};
+ doc.__ny26CompletionClock=api;return api;
+}
+function planners(doc,clock){
  for(const day of doc.querySelectorAll('section.daypage')){
-  const data=[...day.querySelectorAll('article.step')].map(step=>({step,t:schedule(step)})).filter(x=>x.t&&x.t.a!==null&&x.t.b!==null);
+  const data=[...day.querySelectorAll('article.step')].map(step=>({step,t:schedule(step)}))
+   .filter(x=>x.t&&x.t.a!==null&&x.t.b!==null);
   if(data.length<2)continue;
+  const expected=dayDate(day);
   const box=doc.createElement('details');box.className='ny26-enhance ny26-live';
-  const heading=doc.createElement('summary');heading.textContent='⏱ Roteiro dinâmico • antecipar ou ajustar etapas';box.appendChild(heading);
-  const intro=doc.createElement('p');intro.textContent='Escolha o ponto concluído e informe a hora real em Nova York. Sugestões não modificam horários fixos ou marcações Feito.';box.appendChild(intro);
-  const row=doc.createElement('div');row.className='ny26-live-row';
-  const select=doc.createElement('select');data.forEach((x,i)=>{const opt=doc.createElement('option');opt.value=String(i);opt.textContent=x.t.label+' · '+name(x.step).slice(0,62);select.appendChild(opt)});
-  const input=doc.createElement('input');input.type='time';input.value=time(data[0].t.b);
-  const sLabel=doc.createElement('label');sLabel.textContent='Ponto concluído';sLabel.appendChild(select);
-  const tLabel=doc.createElement('label');tLabel.textContent='Término real (hora NY)';tLabel.appendChild(input);
-  row.append(sLabel,tLabel);box.appendChild(row);
-  const output=doc.createElement('div');output.className='ny26-live-result';output.setAttribute('aria-live','polite');box.appendChild(output);
+  const heading=doc.createElement('summary');
+  heading.textContent='⏱ Roteiro dinâmico • automático pelo Feito';box.appendChild(heading);
+  const intro=doc.createElement('p');
+  intro.textContent='Ao marcar Feito em um card, o NY26 registra o horário real em Nova York e ajusta as sugestões seguintes. Não é necessário inserir horas. Reservas mantêm seus horários.';
+  box.appendChild(intro);
+  const output=doc.createElement('div');output.className='ny26-live-result';
+  output.setAttribute('aria-live','polite');box.appendChild(output);
   function calculate(){
-   const i=+select.value,done=minutes(input.value);if(done===null)return;
-   let d=done-data[i].t.b;if(Math.abs(d)>360){output.textContent='Diferença superior a seis horas: revise a hora digitada.';return}
+   const done=data.map((x,i)=>({...x,i,checkbox:x.step.querySelector('input.donecheck[data-step]'),
+    timestamp:clock.read(x.step)})).filter(x=>x.checkbox?.checked);
+   const withTime=done.filter(x=>x.timestamp!==null&&Number.isFinite(x.timestamp)).sort((a,b)=>a.timestamp-b.timestamp);
+   const matching=withTime.filter(x=>!expected||nyTime(x.timestamp).date===expected);
    output.replaceChildren();
    const p=doc.createElement('p');
-   p.textContent=d<=-20?'Adiantamento de '+Math.abs(d)+' minutos. Use a folga para antecipar locais abertos, banheiro ou descanso.':
-    d>=20?'Atraso de '+d+' minutos. Corte paradas opcionais antes da próxima reserva.':
-    'Diferença de '+Math.abs(d)+' minutos. Mantenha a sequência prevista.';
-   output.appendChild(p);const ul=doc.createElement('ul');
-   for(const x of data.slice(i+1,i+6)){
-    const li=doc.createElement('li');
-    if(fixed(x.step)){li.textContent=time(x.t.a)+' • '+name(x.step)+' — FIXO, não antecipar nem atrasar.';d=0}
-    else li.textContent=time(x.t.a+d)+' (original '+time(x.t.a)+') • '+name(x.step);
-    ul.appendChild(li);
+   if(!done.length){
+    heading.textContent='⏱ Roteiro dinâmico • aguardando conclusão';
+    p.textContent='Marque Feito quando terminar uma etapa. O próximo horário será calculado automaticamente.';
+    output.appendChild(p);return;
    }
-   output.appendChild(ul);
-   const note=doc.createElement('small');note.textContent='Simulação, não remarcação. Conferir funcionamento, caminhada, transporte e filas no dia.';output.appendChild(note);
+   if(!matching.length){
+    heading.textContent='⏱ Roteiro dinâmico • sem registro válido';
+    const prev=withTime.at(-1),actual=prev?nyTime(prev.timestamp):null;
+    p.textContent=prev&&expected?
+     'Último Feito registrado em '+actual.date.split('-').reverse().join('/')+' às '+actual.label+
+     ' (Nova York), fora do dia deste roteiro. As atividades não foram deslocadas.':
+     'Existem etapas Feito marcadas antes desta versão, sem horário de conclusão conhecido. Na próxima conclusão, o cálculo começará automaticamente.';
+    output.appendChild(p);return;
+   }
+   const latest=matching.at(-1),actual=nyTime(latest.timestamp),deviation=actual.minute-latest.t.b;
+   heading.textContent='⏱ Último Feito '+actual.label+' (NY) • '+(deviation<0?Math.abs(deviation)+' min antes':deviation>0?deviation+' min depois':'no horário');
+   p.textContent='Concluído às '+actual.label+' (Nova York): '+name(latest.step)+'. '+
+    (deviation<=-20?'Adiantamento de '+Math.abs(deviation)+' min. Antecipe apenas etapas flexíveis e abertas, ou use a folga para banheiro/descanso.':
+     deviation>=20?'Atraso de '+deviation+' min. Reduza paradas opcionais sem comprometer as próximas reservas.':
+     'Diferença de '+Math.abs(deviation)+' min. Continue a sequência prevista.');
+   output.appendChild(p);
+   if(Math.abs(deviation)>360){
+    const warn=doc.createElement('p');warn.textContent='O registro está muito distante do planejamento. Confira o relógio automático do aparelho e se foi marcada a etapa correta; nenhuma alteração automática foi feita.';output.appendChild(warn);return;
+   }
+   const next=data.slice(latest.i+1).filter(x=>!x.step.querySelector('input.donecheck[data-step]')?.checked);
+   if(!next.length){
+    const end=doc.createElement('p');end.textContent='Não há próximas etapas pendentes com horários reconhecidos neste dia.';output.appendChild(end);return;
+   }
+   const list=doc.createElement('ul');let delta=deviation;
+   for(const x of next.slice(0,6)){
+    const li=doc.createElement('li');
+    if(fixed(x.step)){
+     li.textContent=time(x.t.a)+' • '+name(x.step)+' — horário FIXO, não alterado.';
+     if(x.t.a-actual.minute<45){
+      li.textContent+=' Atenção: conferir imediatamente deslocamento e possibilidade de chegada.';
+     }
+     delta=0;
+    }else{
+     const estimated=Math.max(actual.minute, x.t.a+delta);
+     li.textContent=time(estimated)+' (previsto '+time(x.t.a)+') • '+name(x.step);
+    }
+    list.appendChild(li);
+   }
+   output.appendChild(list);
+   const notice=doc.createElement('small');
+   notice.textContent='Sugestões não alteram os horários originais, ingressos, checklists ou reservas. Conferir tempo de deslocamento, filas e funcionamento.';
+   output.appendChild(notice);
   }
-  select.addEventListener('change',()=>{input.value=time(data[+select.value].t.b);calculate()});
-  input.addEventListener('input',calculate);calculate();
+  clock.subscribe(step=>{if(step.closest('section.daypage')===day)calculate()});
+  calculate();
   const anchor=day.querySelector('.ny-day-brief,.ck-daylink,.ny26-offline-advice,.dayheader,h1,h2');
   if(anchor)anchor.insertAdjacentElement('afterend',box);else day.prepend(box);
  }
 }
-function install(doc){
+function install(doc,scope){
  if(!doc?.body||doc.getElementById('ny26-enhancements-css'))return 0;
  const style=doc.createElement('style');style.id='ny26-enhancements-css';style.textContent=css;doc.head.appendChild(style);
  clean(doc);let count=0;
@@ -220,7 +322,8 @@ function install(doc){
   placeTime(doc,step);const n=name(step);
   const found=rules.filter(r=>r[0].test(n));for(const rule of found){appendGuide(doc,step,rule);count++}
  }
- addChoices(doc);planners(doc);return count;
+ const completionClock=installCompletionClock(doc,scope);
+ addChoices(doc);planners(doc,completionClock);return count;
 }
-window.NY26RouteEnhancements={install,version:'2026-11-02'};
+window.NY26RouteEnhancements={install,version:'2026-11-02-auto-feito'};
 })();
