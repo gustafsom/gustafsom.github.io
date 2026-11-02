@@ -20,6 +20,18 @@ const css=[
 '.ny26-live input,.ny26-live select{width:100%;min-width:0;padding:8px;border:1px solid #a3bdcb;border-radius:8px;color:#183a50;background:white;font:500 13px system-ui,sans-serif}',
 '.ny26-live-result{margin-top:11px;padding:9px;border-radius:8px;background:#fff}',
 '.ny26-done-record{display:inline-block;margin:4px 8px;padding:3px 7px;background:#e7f3eb;border-radius:6px;color:#1c6139;font:700 11px/1.4 system-ui,sans-serif}.ny26-done-record[hidden]{display:none!important}',
+'.ny26-confirm-overlay[hidden]{display:none!important}',
+'.ny26-confirm-overlay{position:fixed;inset:0;z-index:2147483647;background:rgba(10,29,44,.76);padding:14px;display:flex;justify-content:center;align-items:center;overflow:auto;font:500 14px/1.5 system-ui,sans-serif}',
+'.ny26-confirm-dialog{width:min(440px,100%);max-height:calc(100dvh - 28px);overflow-y:auto;background:white;border-radius:14px;padding:19px;box-shadow:0 14px 45px #0005;color:#183b52}',
+'.ny26-confirm-dialog h2{font-size:19px;line-height:1.3;margin:0 0 10px}',
+'.ny26-confirm-dialog p{margin:7px 0 12px}',
+'.ny26-confirm-dialog label{font-weight:800;display:block;margin:9px 0 6px}',
+'.ny26-confirm-dialog input[type=time]{width:100%;padding:12px;border:1px solid #849eae;border-radius:9px;font-size:19px;background:white;color:#15344e;min-height:46px}',
+'.ny26-confirm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}',
+'.ny26-confirm-actions button{flex:1;min-width:135px;min-height:44px;border-radius:9px;padding:10px;font-weight:800;border:1px solid #afc6d2;background:#edf4f7;color:#1c475e;cursor:pointer}',
+'.ny26-confirm-actions button[type=submit]{background:#11688b;border-color:#11688b;color:white}',
+'.ny26-confirm-error{color:#a12b1c;font-weight:700}',
+
 '@media(max-width:520px){article.step .actions{display:flex!important;flex-wrap:wrap!important;gap:7px!important}article.step .actions>*{max-width:100%;white-space:normal!important}}'
 ].join('');
 const trim=v=>String(v||'').replace(/\s+/g,' ').trim();
@@ -203,7 +215,8 @@ function fixed(step){
 function installCompletionClock(doc,scope){
  if(doc.__ny26CompletionClock)return doc.__ny26CompletionClock;
  const prefix='ny26-completed-v1:'+String(scope||'local')+':';
- const ephemeral=new Map();
+ const ephemeral=new Map(),listeners=new Set();
+ let modal=null,activeInput=null,approvedInput=null,approvedTimestamp=null,restoreFocus=null;
  function id(step){
   const checkbox=step?.querySelector('input.donecheck[data-step]');
   const token=checkbox?.getAttribute('data-step')||step?.id;
@@ -217,18 +230,17 @@ function installCompletionClock(doc,scope){
   }catch{}
   return ephemeral.get(key)||null;
  }
- function write(step,checked){
+ function write(step,checked,timestamp){
   const key=id(step);if(!key)return;
   if(checked){
-   const timestamp=Date.now();
-   ephemeral.set(key,timestamp);
-   try{localStorage.setItem(key,JSON.stringify({timestamp}))}catch{}
+   const stamp=Number.isFinite(timestamp)?timestamp:Date.now();
+   ephemeral.set(key,stamp);
+   try{localStorage.setItem(key,JSON.stringify({timestamp:stamp}))}catch{}
   }else{
    ephemeral.delete(key);
    try{localStorage.removeItem(key)}catch{}
   }
  }
- const listeners=new Set();
  function showTime(step){
   const input=step?.querySelector('input.donecheck[data-step]');if(!input)return;
   const label=input.closest('label.donecontrol,label');if(!label)return;
@@ -241,15 +253,127 @@ function installCompletionClock(doc,scope){
   marker.hidden=stamp===null;
   marker.textContent=stamp!==null?'Concluído às '+nyTime(stamp).label+' (NY)':'';
  }
+ function notify(step){
+  showTime(step);
+  listeners.forEach(cb=>{try{cb(step)}catch(e){console.warn('Roteiro dinamico:',e)}});
+ }
  for(const step of doc.querySelectorAll('article.step'))showTime(step);
- // Capturing change reads checkbox state before the legacy bubbling saveDone().
- doc.addEventListener('change',ev=>{
-  const input=ev.target;
+ function ensureDialog(){
+  if(modal)return modal;
+  const overlay=doc.createElement('div');
+  overlay.className='ny26-confirm-overlay';overlay.hidden=true;
+  overlay.setAttribute('role','presentation');
+  const panel=doc.createElement('section');
+  panel.className='ny26-confirm-dialog';panel.setAttribute('role','dialog');
+  panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','ny26-confirm-title');
+  const heading=doc.createElement('h2');heading.id='ny26-confirm-title';heading.textContent='✅ Confirmar conclusão';
+  const form=doc.createElement('form');form.setAttribute('novalidate','');
+  const place=doc.createElement('p');place.id='ny26-confirm-place';
+  const date=doc.createElement('p');date.id='ny26-confirm-date';
+  const label=doc.createElement('label');label.textContent='Horário da conclusão • Nova York';
+  const timeInput=doc.createElement('input');timeInput.type='time';timeInput.step='60';
+  timeInput.id='ny26-confirm-time';timeInput.required=true;label.htmlFor=timeInput.id;
+  const explanation=doc.createElement('p');
+  explanation.textContent='Você pode corrigir o horário. A etapa só será marcada Feito depois da confirmação; as demais etapas flexíveis serão recalculadas.';
+  const alert=doc.createElement('p');alert.className='ny26-confirm-error';
+  alert.setAttribute('role','alert');alert.hidden=true;
+  const actions=doc.createElement('div');actions.className='ny26-confirm-actions';
+  const cancel=doc.createElement('button');cancel.type='button';cancel.textContent='Cancelar';
+  const confirm=doc.createElement('button');confirm.type='submit';confirm.textContent='Confirmar Feito';
+  actions.append(cancel,confirm);
+  form.append(place,date,label,timeInput,explanation,alert,actions);
+  panel.append(heading,form);overlay.append(panel);doc.body.append(overlay);
+  modal={overlay,form,place,date,timeInput,alert,cancel,confirm,openedAt:null,dateNY:null,originFocus:null};
+  cancel.addEventListener('click',dismiss);
+  overlay.addEventListener('click',event=>{if(event.target===overlay)dismiss()});
+  doc.addEventListener('keydown',event=>{
+   if(!overlay.hidden&&event.key==='Escape'){event.preventDefault();dismiss()}
+   if(!overlay.hidden&&event.key==='Tab'){
+    const focusables=[timeInput,cancel,confirm];const i=focusables.indexOf(doc.activeElement);
+    if(event.shiftKey&&i<=0){event.preventDefault();confirm.focus()}
+    else if(!event.shiftKey&&i===focusables.length-1){event.preventDefault();timeInput.focus()}
+   }
+  },true);
+  form.addEventListener('submit',event=>{
+   event.preventDefault();
+   if(!activeInput)return;
+   const selected=minutes(timeInput.value);
+   if(selected===null||selected<0||selected>=1440){
+    alert.textContent='Informe um horário válido antes de confirmar.';alert.hidden=false;timeInput.focus();return;
+   }
+   const currentAtOpen=nyTime(modal.openedAt);
+   const clickedAt=modal.openedAt;
+   const sec=new Date(clickedAt).getUTCSeconds()*1000+new Date(clickedAt).getUTCMilliseconds();
+   const stamp=clickedAt+(selected-currentAtOpen.minute)*60000-sec;
+   const check=nyTime(stamp);
+   if(check.date!==modal.dateNY||check.minute!==selected){
+    alert.textContent='Não foi possível validar o horário de Nova York. Confira a data e tente novamente.';
+    alert.hidden=false;return;
+   }
+   const target=activeInput;
+   const step=target.closest('article.step');
+   dismiss();
+   if(!target.isConnected||!step)return;
+   approvedInput=target;approvedTimestamp=stamp;
+   try{
+    // Native click preserves existing click/change handlers and their saveDone flow.
+    if(!target.checked)target.click();
+    if(!target.checked){
+     // Fallback if the private HTML prevents synthetic click for any reason.
+     target.checked=true;target.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));
+    }
+   }finally{approvedInput=null;approvedTimestamp=null}
+  });
+  return modal;
+ }
+ function dismiss(){
+  if(!modal)return;
+  modal.overlay.hidden=true;
+  activeInput=null;
+  const prev=modal.originFocus;modal.originFocus=null;
+  if(prev?.isConnected&&typeof prev.focus==='function')prev.focus();
+ }
+ function askConfirm(input){
+  if(activeInput)return;
+  const step=input.closest('article.step');if(!step)return;
+  const dialog=ensureDialog(),now=Date.now(),local=nyTime(now),day=step.closest('section.daypage'),expected=day&&dayDate(day);
+  activeInput=input;dialog.openedAt=now;dialog.dateNY=local.date;
+  dialog.originFocus=doc.activeElement;
+  dialog.place.textContent=name(step)||'Etapa do roteiro';
+  dialog.date.textContent='Data atual em Nova York: '+local.date.split('-').reverse().join('/');
+  if(expected&&expected!==local.date){
+   dialog.date.textContent+=' • Atenção: este roteiro é de '+expected.split('-').reverse().join('/')+
+    '. O Feito será registrado, mas não deslocará esse dia.';
+  }
+  dialog.timeInput.value=local.label;
+  dialog.alert.hidden=true;dialog.alert.textContent='';
+  dialog.overlay.hidden=false;dialog.timeInput.focus();
+ }
+ // Intercept the native click before legacy click/change listeners persist Feito.
+ // Cancelling a checkbox click restores its previous unchecked state automatically.
+ doc.addEventListener('click',event=>{
+  const input=event.target;
+  if(!input?.matches?.('input.donecheck[data-step]')||input===approvedInput||activeInput)return;
+  if(input.checked){
+   event.preventDefault();event.stopImmediatePropagation();
+   askConfirm(input);
+  }
+ },true);
+ // Fallback covers keyboard/programmatic check events without the corresponding click.
+ // Confirmed events are allowed through to the existing private itinerary handler.
+ doc.addEventListener('change',event=>{
+  const input=event.target;
   if(!input?.matches?.('input.donecheck[data-step]'))return;
   const step=input.closest('article.step');if(!step)return;
-  write(step,input.checked);
-  showTime(step);
-  listeners.forEach(notify=>{try{notify(step)}catch(e){console.warn('Roteiro dinamico:',e)}});
+  if(input.checked&&input!==approvedInput){
+   event.stopImmediatePropagation();
+   input.checked=false;
+   askConfirm(input);
+   return;
+  }
+  if(activeInput&&input===activeInput)return;
+  write(step,input.checked,input===approvedInput?approvedTimestamp:null);
+  notify(step);
  },true);
  const api={read,subscribe:cb=>{listeners.add(cb);return()=>listeners.delete(cb)}};
  doc.__ny26CompletionClock=api;return api;
@@ -264,7 +388,7 @@ function planners(doc,clock){
   const heading=doc.createElement('summary');
   heading.textContent='⏱ Roteiro dinâmico • automático pelo Feito';box.appendChild(heading);
   const intro=doc.createElement('p');
-  intro.textContent='Ao marcar Feito em um card, o NY26 registra o horário real em Nova York e ajusta as sugestões seguintes. Não é necessário inserir horas. Reservas mantêm seus horários.';
+  intro.textContent='Ao tocar em Feito, confirme o horário de Nova York (preenchido automaticamente). Depois da confirmação, as sugestões seguintes serão recalculadas; reservas mantêm seus horários.';
   box.appendChild(intro);
   const output=doc.createElement('div');output.className='ny26-live-result';
   output.setAttribute('aria-live','polite');box.appendChild(output);
@@ -340,5 +464,5 @@ function install(doc,scope){
  const completionClock=installCompletionClock(doc,scope);
  addChoices(doc);planners(doc,completionClock);return count;
 }
-window.NY26RouteEnhancements={install,version:'2026-11-02-auto-feito'};
+window.NY26RouteEnhancements={install,version:'2026-11-02-confirmar-feito'};
 })();
