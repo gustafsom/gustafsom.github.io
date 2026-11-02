@@ -353,7 +353,8 @@ function installCompletionClock(doc,scope){
  // Cancelling a checkbox click restores its previous unchecked state automatically.
  doc.addEventListener('click',event=>{
   const input=event.target;
-  if(!input?.matches?.('input.donecheck[data-step]')||input===approvedInput||activeInput)return;
+  if(!input?.matches?.('input.donecheck[data-step]')||input===approvedInput)return;
+  if(activeInput){event.preventDefault();event.stopImmediatePropagation();return}
   if(input.checked){
    event.preventDefault();event.stopImmediatePropagation();
    askConfirm(input);
@@ -365,6 +366,11 @@ function installCompletionClock(doc,scope){
   const input=event.target;
   if(!input?.matches?.('input.donecheck[data-step]'))return;
   const step=input.closest('article.step');if(!step)return;
+  if(activeInput&&input!==approvedInput){
+   event.stopImmediatePropagation();
+   if(input.checked)input.checked=false;
+   return;
+  }
   if(input.checked&&input!==approvedInput){
    event.stopImmediatePropagation();
    input.checked=false;
