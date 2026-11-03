@@ -209,6 +209,7 @@ function attentionForDay(day){
  if(day.date==='2026-11-07')notes.push({summary:'Filadélfia: após a área da Liberty Bell e Independence Hall, recupere o carro para Rocky Steps; conferir vaga legal na chegada.',url:'https://www.nps.gov/inde/planyourvisit/hours.htm'});
  if(day.date==='2026-11-12')notes.push({summary:'Escolher somente um retorno do Central Park: metrô principal OU caminhada longa via fachadas/Flatiron. O roteiro não é sequencial a partir da bifurcação.',url:'https://new.mta.info/'});
  if(day.date==='2026-11-15')notes.push({summary:'JFK: bagagens variam entre 7 e 8 volumes. Conferir espaço do veículo antes de escolher táxi amarelo; plano B Penn/LIRR/AirTrain exige carregar tudo.',url:'https://www.jfkairport.com/transportation/car-rentals'});
+ if(day.date==='2026-11-05'||day.date==='2026-11-15')notes.push({summary:'JFK em obras durante 2026: trânsito e acessos rodoviários podem sofrer desvios. Conferir alertas do aeroporto, adicionar margem e priorizar a rota sinalizada.',url:'https://www.jfkairport.com/alerts-advisories'});
  return notes.slice(0,5);
 }
 function stageFor(stop){
@@ -482,7 +483,8 @@ function render(doc,section,day,scope){
  schedule.open=false;
  const sum=doc.createElement('summary');
  const stops=(day.stops?.length?day.stops:day.places)||[];
- if(!stops.length)legacy?.setOpen(true);
+ // Dias de deslocamento (sem horarios detalhados na v1.57) mantem os cards operacionais visiveis.
+ if(!day.stops?.length)legacy?.setOpen(true);
  const branch=addBranchChoice(doc,day,stops,scope);
  sum.textContent='📋 Ver programação completa ('+stops.length+' etapas)';
  schedule.appendChild(sum);
