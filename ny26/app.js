@@ -836,7 +836,7 @@ function decodeContent(snapshot){const docs=snapshot.docs.map(d=>({id:d.id,...d.
  if(chunks.length!==m.count||chunks.some((x,i)=>x.index!==i))return null;
  return {version:m.version,html:chunks.map(x=>x.text||'').join('')};
 }
-const V157_CACHE='ny26-private-v157-reference';
+const v157CacheKey=()=>user?.uid?'ny26-private-v157-reference:'+user.uid:null;
 function decodeV157(snap){
  const rows=snap.docs.map(d=>({id:d.id,...d.data()}));
  const manifest=rows.find(x=>x.id==='v157_manifest');
@@ -848,12 +848,12 @@ function decodeV157(snap){
 function setV157(data){
  try{window.NY26V157Overlay?.validate(data)}catch(e){console.warn('Pacote v1.57 inválido:',e);return}
  ny26V157Data=data;
- try{localStorage.setItem(V157_CACHE,JSON.stringify(data))}catch(e){console.warn('Cache privado v1.57 indisponível:',e)}
+ try{if(v157CacheKey())localStorage.setItem(v157CacheKey(),JSON.stringify(data))}catch(e){console.warn('Cache privado v1.57 indisponível:',e)}
  if(frameReady){try{window.NY26V157Overlay?.decorate($('viewer').contentDocument,data)}catch(e){console.warn('Exibição v1.57:',e)}}
 }
 function loadCachedV157(){
  if(ny26V157Data)return;
- try{const obj=JSON.parse(localStorage.getItem(V157_CACHE)||'null');if(obj)setV157(obj)}catch(e){console.warn('Cache v1.57 não disponível:',e)}
+ try{const key=v157CacheKey();if(!key)return;const obj=JSON.parse(localStorage.getItem(key)||'null');if(obj)setV157(obj)}catch(e){console.warn('Cache v1.57 não disponível:',e)}
 }
 function subscribeContent(){cStop?.();cStop=db.collection('trips').doc(TRIP).collection('content').onSnapshot({includeMetadataChanges:true},snap=>{
  const refV157=decodeV157(snap);if(refV157)setV157(refV157);else loadCachedV157();
@@ -906,7 +906,7 @@ function offerFirstImport(){
  };
  box.append(heading,description,b);parent.appendChild(box);
 }
-function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';window.ny26Snapshot=null}
+function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';ny26V157Data=null;ny26V157Preview=null;window.ny26Snapshot=null}
 async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('loading-text','Verificando permissão de acesso…');
  try{const p=db.collection('trips').doc(TRIP).collection('members').doc(u.uid);
  let snap;try{snap=await p.get({source:navigator.onLine?'default':'cache'})}catch{snap=await p.get({source:'cache'})}
