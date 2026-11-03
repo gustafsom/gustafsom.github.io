@@ -1242,6 +1242,38 @@ $('publish-route').onclick=async()=>{try{await importRoute()}catch(e){error(e)}}
 $('route-import').addEventListener('change',async()=>{if(!$('route-import').files?.length)return;try{await importRoute()}catch(e){error(e)}});
 $('try-sync').onclick=()=>{if(user){subscribeContent();subscribeState()}refresh()};
 $('check-update').onclick=async()=>{if(!registration){$msg('settings-msg','A instalação offline exige HTTPS.');return}try{await registration.update();$msg('settings-msg',registration.waiting?'Atualização pronta.':'Verificação concluída.')}catch(e){$msg('settings-msg','Não foi possível consultar o servidor.') }};
+async function verifyLocalData(){
+ if(!user){$msg('integrity-msg','Faça login antes de verificar dados.');return}
+ const button=$('check-integrity');
+ button.disabled=true;
+ $msg('integrity-msg','Conferindo dados neste aparelho, sem modificar o armazenamento…');
+ try{
+  const doc=$('viewer').contentDocument;
+  const boxes=[...(doc?.querySelectorAll('input.donecheck[data-step]')||[])];
+  const complete=boxes.filter(x=>x.checked).length;
+  let actions=0,packing=0;
+  try{const a=JSON.parse(localStorage.getItem(K.actions)||'null');actions=Array.isArray(a?.tasks)?a.tasks.length:0}catch{}
+  try{const p=JSON.parse(localStorage.getItem(K.packing)||'null');packing=Array.isArray(p?.items)?p.items.length:0}catch{}
+  let docsLabel='Não verificado';
+  try{
+   const handle=await openDocsDB();
+   try{
+    const record=await docsTransaction(handle,'readonly',TRIP+':'+user.uid);
+    const counts=Object.values(record?.docs||{}).filter(Array.isArray).map(x=>x.length);
+    const docCount=counts.reduce((total,count)=>total+count,0);
+    docsLabel=docCount+' arquivos no banco local';
+   }finally{handle.close()}
+  }catch(e){docsLabel='Armazenamento local indisponível ('+(e?.name||'erro')+')'}
+  const cached=Boolean(cachedRoute()?.html?.length>10000);
+  $msg('integrity-msg','Conferência neste aparelho: '+complete+'/'+boxes.length+
+    ' etapas marcadas Feito; '+actions+' Ações; '+packing+' itens de Mala; '+
+    docsLabel+'; '+(cached?'roteiro em cache':'roteiro não localizado no cache')+
+    '. Isto não comprova que os PDFs abrem ou que as fotos estão completas: abra Comprovantes, verifique os QR codes e salve o backup no próprio celular.');
+ }catch(e){
+  $msg('integrity-msg','Não foi possível concluir a conferência: '+String(e.message||e)+'. Nenhum dado foi modificado.');
+ }finally{button.disabled=false}
+}
+$('check-integrity').onclick=()=>verifyLocalData();
 $('test-offline').onclick=async()=>{const c=cachedRoute();const names=await caches.keys().catch(()=>[]);const messages=[c?.html?.length>10000?'✓ Roteiro salvo':'✗ Roteiro ainda não armazenado',names.some(name=>name.startsWith('ny26-shell-gh-v'))?'✓ Estrutura em cache':'✗ App ainda não está em cache',user?'✓ Sessão ativa':'✗ Sem login'];
  $msg('settings-msg',messages.join(' · ')+' — faça também o teste real em modo avião nos dois aparelhos.');};
 window.addEventListener('offline',refresh);window.addEventListener('online',()=>{refresh();registration?.update().catch(()=>{})});
