@@ -40,12 +40,13 @@ const rules=[
  'Entrar na estação 23 St da 7th Avenue; linha 1 sentido Downtown / South Ferry, não Uptown / Bronx.',
  'Descer na estação terminal South Ferry e seguir a pé até The Battery. A triagem da Statue City Cruises é junto à água, atrás do Castle Clinton; não é o ferry gratuito para Staten Island.',
  'Contar tempo de caminhada, catracas e inspeção. O horário do ingresso da Estátua indica acesso à fila, não partida garantida da embarcação.',
+ 'OMNY para quatro: use o mesmo cartão no mesmo leitor, um toque por pessoa; a primeira utilização pode exigir pausa entre os toques. Somente o primeiro toque conta para o teto semanal de tarifas.',
  'Conferir serviço MTA no dia, inclusive alterações de feriado.'
  ],'https://new.mta.info/'],
  [/Pier\s*11|NYC Ferry.*DUMBO/i,'⛴️ Pier 11 → DUMBO',1,[
  'Pier 11 / Wall St: acesso em South St com Gouverneur Lane. É NYC Ferry, diferente da Statue City Cruises e do Staten Island Ferry.',
  'Verificar a linha East River e o horário Pier 11 → DUMBO / Fulton Ferry no app NYC Ferry. A travessia é curta, mas há deslocamento e espera no píer.',
- 'NYC Ferry exige passagem separada do OMNY do metrô; tarifa avulsa padrão informada: US$ 4,50 por passageiro (US$ 18 para quatro pagantes). Comprar no app ou nas máquinas e conferir os bilhetes.',
+ 'NYC Ferry exige passagem separada do OMNY do metrô. Desde 19/10/2026, tarifa avulsa de US$ 5 por passageiro pagante (US$ 20 para quatro). Comprar no app ou nas máquinas antes de embarcar.',
  'No Veterans Day (11/11), checar eventual horário especial. 14h40–15h05 é janela de planejamento, NÃO horário confirmado de saída.',
  'Decisão: só usar o ferry se a espera permitir chegar a Brooklyn Heights Promenade perto das 16h15. Caso contrário, usar o plano B via metrô.'
  ],'https://www.ferry.nyc/routes-and-schedules/east-river/'],
