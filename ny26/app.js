@@ -1259,13 +1259,20 @@ async function verifyLocalData(){
   try{const p=JSON.parse(localStorage.getItem(K.packing)||'null');packing=Array.isArray(p?.items)?p.items.length:0}catch{}
   let docsLabel='Não verificado';
   try{
-   const handle=await openDocsDB();
-   try{
-    const record=await docsTransaction(handle,'readonly',TRIP+':'+user.uid);
-    const counts=Object.values(record?.docs||{}).filter(Array.isArray).map(x=>x.length);
-    const docCount=counts.reduce((total,count)=>total+count,0);
-    docsLabel=docCount+' arquivos no banco local';
-   }finally{handle.close()}
+   // Consultar a existência sem criar um banco novo durante a conferência.
+   if(typeof indexedDB.databases!=='function')docsLabel='Verificação de arquivos não suportada neste navegador';
+   else{
+    const names=await indexedDB.databases();
+    if(!names.some(d=>d.name===DOCS_DB))docsLabel='nenhum banco privado de comprovantes encontrado';
+    else{
+     const handle=await openDocsDB();
+     try{
+      const record=await docsTransaction(handle,'readonly',TRIP+':'+user.uid);
+      const counts=Object.values(record?.docs||{}).filter(Array.isArray).map(x=>x.length);
+      docsLabel=counts.reduce((total,count)=>total+count,0)+' arquivos no banco local';
+     }finally{handle.close()}
+    }
+   }
   }catch(e){docsLabel='Armazenamento local indisponível ('+(e?.name||'erro')+')'}
   const cached=Boolean(cachedRoute()?.html?.length>10000);
   $msg('integrity-msg','Conferência neste aparelho: '+complete+'/'+boxes.length+
