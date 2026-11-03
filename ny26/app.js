@@ -1275,9 +1275,12 @@ async function verifyLocalData(){
    }
   }catch(e){docsLabel='Armazenamento local indisponível ('+(e?.name||'erro')+')'}
   const cached=Boolean(cachedRoute()?.html?.length>10000);
+  const v157Key=v157CacheKey();
+  const v157Cached=Boolean(v157Key&&localStorage.getItem(v157Key));
   $msg('integrity-msg','Conferência neste aparelho: '+complete+'/'+boxes.length+
     ' etapas marcadas Feito; '+actions+' Ações; '+packing+' itens de Mala; '+
-    docsLabel+'; '+(cached?'roteiro em cache':'roteiro não localizado no cache')+
+    docsLabel+'; '+(cached?'roteiro base em cache':'roteiro base não localizado no cache')+'; '+
+    (v157Cached?'guia v1.57 disponível offline':'guia v1.57 ainda não confirmado offline')+
     '. Isto não comprova que os PDFs abrem ou que as fotos estão completas: abra Comprovantes, verifique os QR codes e salve o backup no próprio celular.');
  }catch(e){
   $msg('integrity-msg','Não foi possível concluir a conferência: '+String(e.message||e)+'. Nenhum dado foi modificado.');
