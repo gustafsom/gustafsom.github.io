@@ -242,7 +242,7 @@ function legacyControls(doc,section,day){
  function refresh(){
   const boxes=cards.map(c=>c.querySelector('input.donecheck[data-step]')).filter(Boolean);
   const done=boxes.filter(x=>x.checked).length;
-  line.textContent=done+' de '+boxes.length+' etapas antigas marcadas Feito. Seus registros e documentos foram mantidos.';
+  line.textContent=boxes.length?done+' de '+boxes.length+' etapas antigas marcadas Feito. Os dados seguem preservados.':'Os controles antigos continuam disponíveis, sem alterações nos anexos.';
   toggle.textContent=isOpen()?'Ocultar controles antigos':'Mostrar controles Feito / GPS / anexos';
   toggle.setAttribute('aria-expanded',String(isOpen()));
  }
@@ -482,6 +482,7 @@ function render(doc,section,day,scope){
  schedule.open=false;
  const sum=doc.createElement('summary');
  const stops=(day.stops?.length?day.stops:day.places)||[];
+ if(!stops.length)legacy?.setOpen(true);
  const branch=addBranchChoice(doc,day,stops,scope);
  sum.textContent='📋 Ver programação completa ('+stops.length+' etapas)';
  schedule.appendChild(sum);
