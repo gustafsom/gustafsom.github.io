@@ -45,6 +45,13 @@ const css=[
 '.ny26-v157-decision-actions button[aria-pressed=true]{background:#155b80;color:#fff;border-color:#155b80}',
 '.ny26-v157-branch[hidden]{display:none!important}',
 '.ny26-v157-decision-status{font-size:12px;font-weight:700;margin:8px 0 0}',
+'.ny26-v157-view .ny26-live{display:none!important}',
+'.ny26-v157-rhythm{margin:10px 0;padding:11px;background:#ecf7ed;border:1px solid #b7d7c2;border-radius:10px;color:#24513b;font:500 12px/1.5 system-ui,sans-serif}',
+'.ny26-v157-rhythm strong{display:block;font-size:13px;margin-bottom:4px}',
+'.ny26-v157-rhythm p{margin:6px 0}',
+'.ny26-v157-rhythm ul{margin:7px 0;padding-left:17px}',
+'.ny26-v157-rhythm li{margin:5px 0}',
+'.ny26-v157-branch-note{display:block;padding:5px 8px;background:#e9f3f9;color:#1c567b;font:800 11px system-ui;border-radius:6px;margin:5px}',
 '@media(max-width:520px){.ny26-v157{margin:10px 0;padding:10px}.ny26-v157-essentials,.ny26-v157-risk{padding:9px}.ny26-v157-jump{width:100%}}',
 '@media(max-width:480px){.ny26-v157{padding:9px;font-size:12px}.ny26-v157 h3{font-size:15px}}'
 ].join('');
@@ -370,9 +377,95 @@ function addStopChoice(doc,stop,day,scope,container){
  }
  wrap.append(row,status);container.appendChild(wrap);update(active);
 }
+function plannedEndMinute(stop){
+ const parts=[...String(stop.time||'').matchAll(/\b(\d{1,2})[h:](\d{2})\b/g)];
+ if(parts.length<2)return null;
+ const last=parts[1],value=Number(last[1])*60+Number(last[2]);
+ return value>=0&&value<1440?value:null;
+}
+function findLinkedCard(legacy,stop){
+ if(!legacy?.cards?.length)return null;
+ const matches=legacy.cards.map(card=>({card,score:cardMatch(
+   trim(card.querySelector('.place-link')?.textContent),stop.title)}))
+   .filter(x=>x.score>=7).sort((a,b)=>b.score-a.score);
+ return matches[0]&&(!matches[1]||matches[0].score>matches[1].score)?matches[0].card:null;
+}
+function renderLatestRhythm(doc,wrapper,day,legacy,schedule,section){
+ section.__ny26RhythmCleanup?.();
+ section.__ny26RhythmCleanup=null;
+ const stops=day.stops||[];
+ if(stops.length<2)return;
+ const root=doc.createElement('div');root.className='ny26-v157-rhythm';
+ const title=doc.createElement('strong');title.textContent='⏱ Ajuste seguro do roteiro pela hora do Feito';root.appendChild(title);
+ const output=doc.createElement('div');output.setAttribute('aria-live','polite');root.appendChild(output);
+ wrapper.appendChild(root);
+ const clock=doc.__ny26CompletionClock;
+ function update(){
+  output.replaceChildren();
+  if(!clock||!legacy){
+   const p=doc.createElement('p');p.textContent='O registro automático de Feito ainda não está disponível neste dia.';output.appendChild(p);return;
+  }
+  const matched=[];
+  for(let i=0;i<stops.length;i++){
+   const card=findLinkedCard(legacy,stops[i]);
+   const time=plannedEndMinute(stops[i]);
+   if(!card||time===null||!card.querySelector('input.donecheck[data-step]')?.checked)continue;
+   const stamp=clock.read(card);
+   if(!Number.isFinite(stamp))continue;
+   const actual=nyDateTime(stamp);
+   if(actual.date!==day.date)continue;
+   matched.push({i,stamp,actual,planned:time,stop:stops[i]});
+  }
+  if(!matched.length){
+   const p=doc.createElement('p');
+   p.textContent='Aguardando conclusão com hora confirmada e etapa correspondente na v1.57. As marcações antigas continuam preservadas.';
+   output.appendChild(p);return;
+  }
+  const latest=matched.sort((a,b)=>a.stamp-b.stamp).at(-1),diff=latest.actual.minute-latest.planned;
+  const p=doc.createElement('p');
+  p.textContent=latest.stop.title+' • Feito às '+latest.actual.label+' (NY) • '+
+   (diff>0?diff+' min depois':diff<0?Math.abs(diff)+' min antes':'no horário')+
+   ' do término planejado.';
+  output.appendChild(p);
+  if(Math.abs(diff)>180){
+   const caution=doc.createElement('p');caution.textContent='Diferença muito grande: revise o registro e mantenha horários originais até confirmar.';output.appendChild(caution);return;
+  }
+  const notes=doc.createElement('ul');
+  let delta=diff,shown=0;
+  const nodeList=[...schedule.querySelectorAll('.ny26-v157-step')];
+  for(let i=latest.i+1;i<stops.length&&shown<3;i++){
+   if(nodeList[i]?.hidden)continue;
+   const t=startMinute(stops[i]);if(t===null)continue;
+   const stage=stageFor(stops[i]);
+   const locked=stage?.kind==='fixed';
+   const li=doc.createElement('li');
+   if(locked){
+    li.textContent=stops[i].time+' • '+stops[i].title+' — HORÁRIO PRIORITÁRIO, não deslocado.';
+    delta=0;
+   }else{
+    const estimate=Math.max(latest.actual.minute,t+delta);
+    const label=String(Math.floor((estimate%1440)/60)).padStart(2,'0')+':'+String(estimate%60).padStart(2,'0');
+    li.textContent=label+' (original '+stops[i].time+') • '+stops[i].title;
+   }
+   notes.appendChild(li);shown++;
+  }
+  output.appendChild(notes);
+  const foot=doc.createElement('small');foot.textContent='Sugestão, não previsão de transporte. Reservas, fotos e Feito não são alterados.';output.appendChild(foot);
+ }
+ function nyDateTime(stamp){
+  const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',
+   year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})
+   .formatToParts(new Date(stamp)).map(x=>[x.type,x.value]));
+  return {date:p.year+'-'+p.month+'-'+p.day,minute:Number(p.hour)*60+Number(p.minute),label:p.hour+':'+p.minute};
+ }
+ const unsubscribe=clock?.subscribe(()=>update());
+ section.__ny26RhythmCleanup=()=>{if(typeof unsubscribe==='function')unsubscribe()};
+ update();
+}
 function render(doc,section,day,scope){
  section.querySelector('.ny26-v157-day')?.remove();
  // Conservar os artigos originais com IDs/Feito/PDF; só alternar sua visibilidade.
+ section.classList.add('ny26-v157-view');
  const legacy=legacyControls(doc,section,day);
  const wrapper=doc.createElement('section');wrapper.className='ny26-v157 ny26-v157-day';
  const title=doc.createElement('h3');title.textContent='🗽 Roteiro principal • Planejamento v1.57';wrapper.appendChild(title);
@@ -383,13 +476,15 @@ function render(doc,section,day,scope){
  const sum=doc.createElement('summary');
  const stops=(day.stops?.length?day.stops:day.places)||[];
  const branch=addBranchChoice(doc,day,stops,scope);
- if(branch)wrapper.appendChild(branch.wrap);
  sum.textContent='📋 Ver programação completa ('+stops.length+' etapas)';
  schedule.appendChild(sum);
  for(const [index,stop] of stops.entries()){
   const item=line(doc,stop);
   const routeBranch=branch?.label(index);
-  if(routeBranch){item.dataset.ny26Branch=routeBranch;item.classList.add('ny26-v157-branch');}
+  if(routeBranch){
+   item.dataset.ny26Branch=routeBranch;item.classList.add('ny26-v157-branch');
+   if(index===branch.aIndex||index===branch.bIndex){const label=doc.createElement('span');label.className='ny26-v157-branch-note';label.textContent=routeBranch==='metro'?'PLANO A — VOLTA DE METRÔ':'PLANO B — VOLTA A PÉ';item.querySelector('summary')?.insertAdjacentElement('afterend',label)}
+  }
   const stage=stageFor(stop);
   if(stage){
    const tag=doc.createElement('span');tag.className='ny26-v157-stage '+stage.kind;tag.textContent=stage.text;
@@ -413,8 +508,9 @@ function render(doc,section,day,scope){
   addStopChoice(doc,stop,day,scope,item);
   schedule.appendChild(item);
  }
- if(branch)branch.activate();
  renderOperational(doc,wrapper,day,schedule,legacy);
+ renderLatestRhythm(doc,wrapper,day,legacy,schedule,section);
+ if(branch){wrapper.appendChild(branch.wrap);branch.activate()}
  wrapper.appendChild(schedule);
  annotateExisting(doc,section,day);
  const anchor=section.querySelector('.ny-day-brief,.ck-daylink,.ny26-live,.ny26-offline-advice,.dayheader,h1,h2,h3');
