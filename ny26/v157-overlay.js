@@ -38,6 +38,13 @@ const css=[
 '.ny26-v157-rest-hidden article.step{display:none!important}',
 '.ny26-v157-next{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px}',
 '.ny26-v157-titleline{font-size:11px;letter-spacing:.02em;font-weight:800;text-transform:uppercase;color:#365a73;margin-bottom:5px}',
+'.ny26-v157-decision{border:1px solid #aad0dc;background:#effaff;padding:10px;border-radius:9px;margin:10px 0}',
+'.ny26-v157-decision strong{display:block;font-size:13px;margin-bottom:7px}',
+'.ny26-v157-decision-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:9px}',
+'.ny26-v157-decision-actions button{padding:10px;min-height:44px;border-radius:8px;background:#fff;color:#23516c;border:1px solid #85b1c6;font:750 12px system-ui;cursor:pointer}',
+'.ny26-v157-decision-actions button[aria-pressed=true]{background:#155b80;color:#fff;border-color:#155b80}',
+'.ny26-v157-branch[hidden]{display:none!important}',
+'.ny26-v157-decision-status{font-size:12px;font-weight:700;margin:8px 0 0}',
 '@media(max-width:520px){.ny26-v157{margin:10px 0;padding:10px}.ny26-v157-essentials,.ny26-v157-risk{padding:9px}.ny26-v157-jump{width:100%}}',
 '@media(max-width:480px){.ny26-v157{padding:9px;font-size:12px}.ny26-v157 h3{font-size:15px}}'
 ].join('');
@@ -293,7 +300,77 @@ function renderOperational(doc,wrapper,day,details,legacy){
   wrapper.appendChild(hint);
  }
 }
-function render(doc,section,day){
+function addBranchChoice(doc,day,stopList,scope){
+ if(day.date!=='2026-11-12')return null;
+ const aIndex=stopList.findIndex(x=>/retorno principal.+metr[oô]/i.test(x.title));
+ const bIndex=stopList.findIndex(x=>/carnegie hall/i.test(x.title));
+ if(aIndex<0||bIndex<=aIndex)return null;
+ const key='ny26-v157-return:'+String(scope||'local')+':'+day.date;
+ const wrap=doc.createElement('div');wrap.className='ny26-v157-decision';
+ const strong=doc.createElement('strong');strong.textContent='🔀 DECISÃO • Como voltar do Central Park?';wrap.appendChild(strong);
+ const p=doc.createElement('p');p.textContent='Escolha somente UM trajeto. As etapas do outro plano serão ocultadas (sem apagar Feito ou anexos).';wrap.appendChild(p);
+ const actions=doc.createElement('div');actions.className='ny26-v157-decision-actions';
+ const status=doc.createElement('p');status.className='ny26-v157-decision-status';status.setAttribute('aria-live','polite');
+ const choices=[
+  {value:'metro',label:'Plano A • metrô',detail:'Mais rápido e menos caminhada'},
+  {value:'walk',label:'Plano B • a pé',detail:'Caminhada longa, com fachadas e Flatiron'}
+ ];
+ let active='';try{active=localStorage.getItem(key)||''}catch{}
+ const buttons=[];
+ function select(val){
+  active=val;
+  try{if(active)localStorage.setItem(key,active);else localStorage.removeItem(key)}catch{}
+  buttons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.plan===active)));
+  status.textContent=active?'Escolhido neste aparelho: '+choices.find(x=>x.value===active).label:
+   'Decisão pendente. Os dois planos aparecem separados, mas NÃO devem ser feitos juntos.';
+  const root=wrap.closest('.ny26-v157');
+  root?.querySelectorAll('[data-ny26-branch]').forEach(el=>{
+   el.hidden=Boolean(active&&el.dataset.ny26Branch!==active);
+  });
+ }
+ for(const opt of choices){
+  const b=doc.createElement('button');b.type='button';b.dataset.plan=opt.value;b.textContent=opt.label;
+  b.title=opt.detail;b.addEventListener('click',()=>select(opt.value));buttons.push(b);actions.appendChild(b);
+ }
+ const reset=doc.createElement('button');reset.type='button';reset.textContent='Sem decisão';
+ reset.addEventListener('click',()=>select(''));actions.appendChild(reset);
+ wrap.append(actions,status);
+ return {wrap,aIndex,bIndex,activate:()=>select(active),label:index=>
+  index>=aIndex&&index<bIndex?'metro':index>=bIndex?'walk':null};
+}
+function addStopChoice(doc,stop,day,scope,container){
+ let opts=null;
+ if(day.date==='2026-11-11'&&/Pier\s*11|NYC Ferry ou alternativa/i.test(stop.title)){
+  opts=[['ferry','Plano A • NYC Ferry','Conferir saída e embarcar somente se houver margem até Brooklyn Heights'],
+   ['metro','Plano B • metrô','Se o ferry não encaixar, usar transporte sobre trilhos até Brooklyn (confirmar serviço MTA)']];
+ }else if(day.date==='2026-11-15'&&/T[aá]xi amarelo.+JFK|JFK T8/i.test(stop.title)){
+  opts=[['taxi','Plano A • táxi','Antes de embarcar, confirmar que cabem quatro pessoas e todas as malas/mochilas'],
+   ['lirr','Plano B • LIRR + AirTrain','Requer levar bagagens até Penn Station, transferir em Jamaica e seguir a Terminal 8']];
+ }else if(day.date==='2026-11-14'&&/Volta ao hotel a p[eé]|Times Square.+opcional/i.test(stop.title)){
+  opts=[['direct','Plano A • hotel','Priorizar descanso'],['times','Plano B • Times Square','Somente se todos ainda tiverem disposição']];
+ }
+ if(!opts)return;
+ const key='ny26-v157-choice:'+String(scope||'local')+':'+day.date+':'+stop.title;
+ const wrap=doc.createElement('div');wrap.className='ny26-v157-decision';
+ const strong=doc.createElement('strong');strong.textContent='🔀 Decisão neste ponto';wrap.appendChild(strong);
+ const row=doc.createElement('div');row.className='ny26-v157-decision-actions';
+ const status=doc.createElement('p');status.className='ny26-v157-decision-status';status.setAttribute('aria-live','polite');
+ let active='';try{active=localStorage.getItem(key)||''}catch{}
+ const buttons=[];
+ function update(value){
+  active=value;
+  try{if(active)localStorage.setItem(key,active);else localStorage.removeItem(key)}catch{}
+  buttons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.value===active)));
+  status.textContent=active?'Escolhido neste aparelho: '+opts.find(x=>x[0]===active)[1]:'Escolha quando estiver neste ponto.';
+ }
+ for(const [value,label,description] of opts){
+  const b=doc.createElement('button');b.type='button';b.dataset.value=value;b.textContent=label;
+  b.title=description;b.addEventListener('click',()=>update(value));buttons.push(b);row.appendChild(b);
+  const note=doc.createElement('p');note.textContent=label+': '+description;wrap.appendChild(note);
+ }
+ wrap.append(row,status);container.appendChild(wrap);update(active);
+}
+function render(doc,section,day,scope){
  section.querySelector('.ny26-v157-day')?.remove();
  // Conservar os artigos originais com IDs/Feito/PDF; só alternar sua visibilidade.
  const legacy=legacyControls(doc,section,day);
@@ -305,10 +382,14 @@ function render(doc,section,day){
  schedule.open=false;
  const sum=doc.createElement('summary');
  const stops=(day.stops?.length?day.stops:day.places)||[];
+ const branch=addBranchChoice(doc,day,stops,scope);
+ if(branch)wrapper.appendChild(branch.wrap);
  sum.textContent='📋 Ver programação completa ('+stops.length+' etapas)';
  schedule.appendChild(sum);
- for(const stop of stops){
+ for(const [index,stop] of stops.entries()){
   const item=line(doc,stop);
+  const routeBranch=branch?.label(index);
+  if(routeBranch){item.dataset.ny26Branch=routeBranch;item.classList.add('ny26-v157-branch');}
   const stage=stageFor(stop);
   if(stage){
    const tag=doc.createElement('span');tag.className='ny26-v157-stage '+stage.kind;tag.textContent=stage.text;
@@ -329,8 +410,10 @@ function render(doc,section,day){
    a.className='ny26-v157-jump';a.textContent='📍 Abrir endereço no mapa (online)';
    item.appendChild(a);
   }
+  addStopChoice(doc,stop,day,scope,item);
   schedule.appendChild(item);
  }
+ if(branch)branch.activate();
  renderOperational(doc,wrapper,day,schedule,legacy);
  wrapper.appendChild(schedule);
  annotateExisting(doc,section,day);
@@ -350,7 +433,7 @@ function foodDirectory(doc,pack){
  }
  page.appendChild(card);
 }
-function decorate(doc,pack){
+function decorate(doc,pack,scope){
  if(!doc?.body||!pack)return {days:0,steps:0};
  validate(pack);
  try{window.NY26FoodGuide?.updateHeader(doc,'1.57')}catch(e){console.warn('Título v1.57:',e)}
@@ -362,7 +445,7 @@ function decorate(doc,pack){
  let days=0,steps=0;
  for(const section of doc.querySelectorAll('section.daypage')){
   const d=index.get(dateOf(section));if(!d)continue;
-  render(doc,section,d);days++;steps+=(d.stops?.length||0)+(d.places?.length||0);
+  render(doc,section,d,scope);days++;steps+=(d.stops?.length||0)+(d.places?.length||0);
  }
  foodDirectory(doc,pack);
  return {days,steps};
