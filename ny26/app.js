@@ -4,6 +4,7 @@ const $=id=>document.getElementById(id);
 const TRIP='ny26',K={actions:'ny26_checklist_v5',packing:'ny26_packing_v6',route:'ny26_v9_route_cache'};
 let auth,db,user=null,role='',cStop=null,sStop=null,frameReady=false,routeVer='',pending=false,fromCache=true,lastServer=0,registration=null;
 let lastMaps={actions:{},packing:{}},device=localStorage.getItem('ny26_client_device');
+let ny26V157Preview=null,ny26V157Backup=false,ny26V157Data=null;
 if(!device){device='d'+Date.now().toString(36)+Math.random().toString(36).slice(2);localStorage.setItem('ny26_client_device',device)}
 const $msg=(id,v)=>$(id).textContent=v||'';
 function banner(s,type='wait'){$('status').textContent=s;$('status').className='status '+type;$msg('app-message',s)}
@@ -818,6 +819,7 @@ function openFrame(html){
   }catch(e){console.warn('Inicialização da ficha:',e)}
   try{window.NY26RouteAdvice?.decorate(doc)}catch(e){console.warn('Guia de orientacoes:',e)}
   try{window.NY26RouteEnhancements?.install(doc,TRIP+':'+user.uid)}catch(e){console.warn('Ajustes de roteiro:',e)}
+  try{if(ny26V157Data)window.NY26V157Overlay?.decorate(doc,ny26V157Data)}catch(e){console.warn('Guia v1.57:',e)}
   if(window.ny26Snapshot)applySnapshot(window.ny26Snapshot);
  };
  frame.srcdoc=safe;
@@ -834,10 +836,31 @@ function decodeContent(snapshot){const docs=snapshot.docs.map(d=>({id:d.id,...d.
  if(chunks.length!==m.count||chunks.some((x,i)=>x.index!==i))return null;
  return {version:m.version,html:chunks.map(x=>x.text||'').join('')};
 }
+const V157_CACHE='ny26-private-v157-reference';
+function decodeV157(snap){
+ const rows=snap.docs.map(d=>({id:d.id,...d.data()}));
+ const manifest=rows.find(x=>x.id==='v157_manifest');
+ if(!manifest||!manifest.version||!Number.isInteger(manifest.count)||manifest.count<1||manifest.count>20)return null;
+ const chunks=rows.filter(x=>x.id.startsWith('v157_chunk_')&&x.version===manifest.version).sort((a,b)=>a.index-b.index);
+ if(chunks.length!==manifest.count||chunks.some((x,i)=>x.index!==i))return null;
+ try{return JSON.parse(chunks.map(x=>x.text||'').join(''))}catch{return null}
+}
+function setV157(data){
+ try{window.NY26V157Overlay?.validate(data)}catch(e){console.warn('Pacote v1.57 inválido:',e);return}
+ ny26V157Data=data;
+ try{localStorage.setItem(V157_CACHE,JSON.stringify(data))}catch(e){console.warn('Cache privado v1.57 indisponível:',e)}
+ if(frameReady){try{window.NY26V157Overlay?.decorate($('viewer').contentDocument,data)}catch(e){console.warn('Exibição v1.57:',e)}}
+}
+function loadCachedV157(){
+ if(ny26V157Data)return;
+ try{const obj=JSON.parse(localStorage.getItem(V157_CACHE)||'null');if(obj)setV157(obj)}catch(e){console.warn('Cache v1.57 não disponível:',e)}
+}
 function subscribeContent(){cStop?.();cStop=db.collection('trips').doc(TRIP).collection('content').onSnapshot({includeMetadataChanges:true},snap=>{
+ const refV157=decodeV157(snap);if(refV157)setV157(refV157);else loadCachedV157();
  const d=decodeContent(snap);if(d)applyRoute(d.html,d.version,snap.metadata.fromCache);
  else if(!routeVer)$msg('loading-text','A conta está ativa, mas o roteiro ainda não foi importado na área privada.');
 },e=>{error('Roteiro indisponível: '+e.message);const c=cachedRoute();if(c)applyRoute(c.html,c.version,true)});
+ loadCachedV157();
  const c=cachedRoute();if(c&&!routeVer)applyRoute(c.html,c.version,true);
 }
 function applySnapshot(snap){window.ny26Snapshot=snap;pending=snap.metadata.hasPendingWrites;fromCache=snap.metadata.fromCache;if(!pending&&!fromCache)lastServer=Date.now();
@@ -888,7 +911,7 @@ async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('l
  try{const p=db.collection('trips').doc(TRIP).collection('members').doc(u.uid);
  let snap;try{snap=await p.get({source:navigator.onLine?'default':'cache'})}catch{snap=await p.get({source:'cache'})}
  if(!snap.exists)throw Error('Seu usuário ainda não foi autorizado pelo administrador.');role=snap.data().role||'viewer';
- $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');$('admin-review').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
+ $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');$('admin-review').classList.toggle('hide',role!=='admin');$('admin-v157').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
  subscribeContent();subscribeState();
  }catch(e){error(e);$msg('loading-text',String(e?.message||e));show('waiting')}
 }
@@ -1040,6 +1063,55 @@ async function reviewApply(){
  }finally{reviewApplying=false}
 }
 
+function v157Message(message){$msg('v157-msg',message)}
+async function previewV157(){
+ if(role!=='admin')throw Error('Somente administrador pode conferir o pacote.');
+ const file=$('v157-file').files?.[0];
+ if(!file)throw Error('Selecione NY26_atualizacao_privada_v157.json.');
+ if(file.size>400000)throw Error('Pacote acima de 400 KB.');
+ const obj=JSON.parse(await file.text());
+ window.NY26V157Overlay?.validate(obj);
+ if(obj.source!=='NY_2026_Planejamento_Mestre_Atualizado_02-11_v157.xlsx')throw Error('Fonte não é a planilha v1.57 esperada.');
+ ny26V157Preview=obj;ny26V157Backup=false;
+ $('v157-backup').disabled=false;$('v157-apply').disabled=true;
+ const stops=obj.days.reduce((a,d)=>a+(d.stops?.length||0),0);
+ v157Message('Versão '+obj.version+': '+obj.days.length+' dias, '+stops+
+   ' etapas detalhadas. Nenhum Feito, anexo, check-list ou card existente será apagado. Salve o backup antes de publicar.');
+}
+function privateDownload(name,content,type){
+ const data=new Blob([content],{type:type||'application/octet-stream'});
+ const href=URL.createObjectURL(data),a=document.createElement('a');
+ a.href=href;a.download=name;document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(href),1200);
+}
+function backupBeforeV157(){
+ if(role!=='admin'||!ny26V157Preview)throw Error('Analise primeiro o pacote.');
+ const saved=cachedRoute();
+ if(!saved?.html||saved.html.length<10000)throw Error('Roteiro atual não está disponível neste aparelho: backup não gerado.');
+ privateDownload('NY26_ROTEIRO_ANTES_V157_BACKUP.html',saved.html,'text/html;charset=utf-8');
+ ny26V157Backup=true;$('v157-apply').disabled=false;
+ v157Message('Cópia do HTML privado preparada para download. Confira o arquivo salvo. PDFs e fotos devem ser protegidos separadamente no celular; esta importação não os altera.');
+}
+async function applyV157(){
+ if(role!=='admin'||!ny26V157Preview||!ny26V157Backup)throw Error('É necessário analisar o pacote e gerar backup primeiro.');
+ if(!navigator.onLine)throw Error('Conecte o aparelho à internet para publicar.');
+ const pack=window.NY26V157Overlay.validate(ny26V157Preview);
+ if(!confirm('Publicar o guia v1.57 para os participantes autorizados? Roteiro anterior, Feito, mala, ações e anexos NÃO serão substituídos.'))return;
+ const str=JSON.stringify(pack),chars=Array.from(str),pieces=[];
+ for(let i=0;i<chars.length;i+=30000)pieces.push(chars.slice(i,i+30000).join(''));
+ if(pieces.length>20)throw Error('Pacote excede limite seguro.');
+ const ref=db.collection('trips').doc(TRIP).collection('content'),batch=db.batch();
+ const version='v157-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6);
+ const stamp=firebase.firestore.FieldValue.serverTimestamp();
+ pieces.forEach((txt,i)=>batch.set(ref.doc('v157_chunk_'+String(i).padStart(3,'0')),
+  {version,index:i,text:txt,count:0,updatedAt:stamp}));
+ batch.set(ref.doc('v157_manifest'),{version,index:-1,text:'',count:pieces.length,updatedAt:stamp});
+ v157Message('Publicando conteúdo privado sem alterar o roteiro anterior…');
+ await batch.commit();
+ setV157(pack);ny26V157Preview=null;ny26V157Backup=false;
+ $('v157-backup').disabled=true;$('v157-apply').disabled=true;
+ v157Message('✅ Guia v1.57 publicado. Os dois celulares receberão as novas informações ao sincronizar. Marcações Feito e anexos não foram modificados.');
+}
 async function importRoute(){if(role!=='admin')throw Error('Somente administrador pode importar o roteiro.');
  if(!navigator.onLine)throw Error('Conecte-se à internet para publicar o roteiro.');
  const f=$('route-import').files[0];if(!f)throw Error('Selecione o arquivo HTML privado.');
@@ -1156,6 +1228,11 @@ function openDocuments(){
 $('open-documents').onclick=openDocuments;
 $('home').onclick=returnFromSettings;
 $('logout').onclick=async()=>{if(!confirm('Sair da conta neste aparelho?'))return;clear();await auth.signOut();show('setup')};
+$('v157-file').addEventListener('change',()=>{ny26V157Preview=null;ny26V157Backup=false;
+ $('v157-backup').disabled=true;$('v157-apply').disabled=true;v157Message('Arquivo selecionado. Toque em Conferir pacote.');});
+$('v157-preview').onclick=async()=>{try{await previewV157()}catch(e){v157Message('⚠️ '+String(e.message||e))}};
+$('v157-backup').onclick=()=>{try{backupBeforeV157()}catch(e){v157Message('⚠️ '+String(e.message||e))}};
+$('v157-apply').onclick=async()=>{try{await applyV157()}catch(e){v157Message('⚠️ '+String(e.message||e))}};
 $('checklist-review-import').addEventListener('change',()=>{reviewPlan=null;reviewBackedUp=false;$('checklist-review-backup').disabled=true;$('checklist-review-apply').disabled=true;reviewStatus('Arquivo selecionado. Toque em Analisar revisão.');});
 $('checklist-review-preview').onclick=async()=>{try{await reviewPreview()}catch(e){reviewStatus('⚠️ '+(e.message||e))}};
 $('checklist-review-backup').onclick=async()=>{try{await reviewBackup()}catch(e){reviewStatus('⚠️ '+(e.message||e))}};
