@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id);
 const TRIP='ny26',K={actions:'ny26_checklist_v5',packing:'ny26_packing_v6',route:'ny26_v9_route_cache'};
 let auth,db,user=null,role='',cStop=null,sStop=null,frameReady=false,routeVer='',pending=false,fromCache=true,lastServer=0,registration=null;
 let lastMaps={actions:{},packing:{}},device=localStorage.getItem('ny26_client_device');
-let ny26V157Preview=null,ny26V157Backup=false,ny26V157Data=null;
+let ny26V157Preview=null,ny26V157Backup=false,ny26V157Data=null,ny26V157Signature=null;
 if(!device){device='d'+Date.now().toString(36)+Math.random().toString(36).slice(2);localStorage.setItem('ny26_client_device',device)}
 const $msg=(id,v)=>$(id).textContent=v||'';
 function banner(s,type='wait'){$('status').textContent=s;$('status').className='status '+type;$msg('app-message',s)}
@@ -848,6 +848,9 @@ function decodeV157(snap){
 }
 function setV157(data){
  try{window.NY26V157Overlay?.validate(data)}catch(e){console.warn('Pacote v1.57 inválido:',e);return}
+ const signature=JSON.stringify(data);
+ if(ny26V157Signature===signature)return;
+ ny26V157Signature=signature;
  ny26V157Data=data;
  try{if(v157CacheKey())localStorage.setItem(v157CacheKey(),JSON.stringify(data))}catch(e){console.warn('Cache privado v1.57 indisponível:',e)}
  if(frameReady){try{window.NY26V157Overlay?.decorate($('viewer').contentDocument,data,TRIP+':'+user.uid)}catch(e){console.warn('Exibição v1.57:',e)}}
@@ -907,7 +910,7 @@ function offerFirstImport(){
  };
  box.append(heading,description,b);parent.appendChild(box);
 }
-function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';ny26V157Data=null;ny26V157Preview=null;window.ny26Snapshot=null}
+function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';ny26V157Data=null;ny26V157Signature=null;ny26V157Preview=null;window.ny26Snapshot=null}
 async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('loading-text','Verificando permissão de acesso…');
  try{const p=db.collection('trips').doc(TRIP).collection('members').doc(u.uid);
  let snap;try{snap=await p.get({source:navigator.onLine?'default':'cache'})}catch{snap=await p.get({source:'cache'})}
