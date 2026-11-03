@@ -13,6 +13,7 @@ const css=[
 '.ny26-v157-compare{background:#ebf0f3;padding:8px;border-radius:6px;font-size:12px}',
 '.ny26-v157-step a{color:#095c87}',
 '.ny26-v157-inline{padding:8px 10px;margin:9px 0;background:#eef7fb;border:1px solid #b8d4e3;border-radius:9px;font-size:12px}.ny26-v157-inline summary{cursor:pointer;font-weight:800}.ny26-v157-inline p{margin:6px 0;line-height:1.4}',
+'.ny26-v157-food-primary{background:#fff8e8;border:1px solid #efd8ab;border-left:3px solid #a98028;padding:9px 11px;margin:9px 0;border-radius:9px;font:500 12px/1.48 system-ui,sans-serif;overflow-wrap:anywhere}.ny26-v157-food-primary strong{display:block;margin-bottom:4px}',
 '@media(max-width:480px){.ny26-v157{padding:9px;font-size:12px}.ny26-v157 h3{font-size:15px}}'
 ].join('');
 const trim=v=>String(v||'').replace(/\s+/g,' ').trim();
@@ -92,6 +93,17 @@ function annotateExisting(doc,section,day){
   para(doc,detail,'O que observar',best.look);
   para(doc,detail,'Tipo de comida',best.food,'ny26-v157-food');
   container.appendChild(detail);
+  // Alimentação deve ficar visível no card principal, não apenas no acordeão.
+  // Quando o menu genérico já aparece, manter o cardápio e a fonte oficial.
+  const oldFood=container.querySelector('.ny26-v157-food-primary');
+  oldFood?.remove();
+  if(best.food&&!container.querySelector('.ny26-menu-hint')){
+   const food=doc.createElement('div');food.className='ny26-v157-food-primary';
+   const head=doc.createElement('strong');head.textContent='🍽️ Tipo de comida • v1.57';food.appendChild(head);
+   const contentText=doc.createElement('span');contentText.textContent=best.food;food.appendChild(contentText);
+   const actions=container.querySelector('.actions');
+   if(actions)container.insertBefore(food,actions);else container.appendChild(food);
+  }
  }
 }
 function render(doc,section,day){
@@ -129,6 +141,7 @@ function foodDirectory(doc,pack){
 function decorate(doc,pack){
  if(!doc?.body||!pack)return {days:0,steps:0};
  validate(pack);
+ try{window.NY26FoodGuide?.updateHeader(doc,'1.57')}catch(e){console.warn('Título v1.57:',e)}
  if(!doc.getElementById('ny26-v157-style')){
   const style=doc.createElement('style');style.id='ny26-v157-style';style.textContent=css;doc.head.appendChild(style);
  }
