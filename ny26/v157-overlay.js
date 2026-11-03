@@ -14,6 +14,31 @@ const css=[
 '.ny26-v157-step a{color:#095c87}',
 '.ny26-v157-inline{padding:8px 10px;margin:9px 0;background:#eef7fb;border:1px solid #b8d4e3;border-radius:9px;font-size:12px}.ny26-v157-inline summary{cursor:pointer;font-weight:800}.ny26-v157-inline p{margin:6px 0;line-height:1.4}',
 '.ny26-v157-food-primary{background:#fff8e8;border:1px solid #efd8ab;border-left:3px solid #a98028;padding:9px 11px;margin:9px 0;border-radius:9px;font:500 12px/1.48 system-ui,sans-serif;overflow-wrap:anywhere}.ny26-v157-food-primary strong{display:block;margin-bottom:4px}',
+'.ny26-v157{background:#fff;border-color:#c8d9e3;box-shadow:0 2px 8px #1234}',
+'.ny26-v157 h3{color:#173950}',
+'.ny26-v157-essentials{margin:12px 0;padding:12px;background:#eef7fb;border-radius:11px;border:1px solid #bed8e5}',
+'.ny26-v157-essentials strong{font-size:14px;display:block}',
+'.ny26-v157-essentials p{margin:6px 0;font-size:13px}',
+'.ny26-v157-risk{background:#fff4e5;border:1px solid #eccb99;border-left:4px solid #bb7b17;padding:10px 11px;border-radius:10px;margin:12px 0}',
+'.ny26-v157-risk summary{font-weight:800;cursor:pointer;min-height:44px;display:flex;align-items:center}',
+'.ny26-v157-risk li{padding:4px 0;font-size:12px;line-height:1.5}',
+'.ny26-v157-risk a{font-size:12px;color:#80591a;font-weight:700}',
+'.ny26-v157-program summary{font-weight:800;min-height:46px;display:flex;align-items:center;cursor:pointer}',
+'.ny26-v157-step summary{padding:9px 6px;min-height:44px;display:flex;align-items:center;line-height:1.42;gap:6px}',
+'.ny26-v157-step summary::before{content:\'▸\';font-size:12px;color:#4c7185;flex-shrink:0}',
+'.ny26-v157-step[open] summary::before{content:\'▾\'}',
+'.ny26-v157-stage{display:inline-block;font:800 10px/1.5 system-ui,sans-serif;padding:2px 7px;margin:2px 0 6px;border-radius:6px;background:#e4eff7;color:#1a4b68}',
+'.ny26-v157-stage.conditional{background:#fff2d3;color:#765007}',
+'.ny26-v157-stage.fixed{background:#fce6db;color:#8a371c}',
+'.ny26-v157-jump{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:9px 13px;border-radius:9px;border:1px solid #9fbacb;background:#e9f4fb;color:#17486a;font:800 12px system-ui,sans-serif;cursor:pointer;gap:5px}',
+'.ny26-v157-jump:focus-visible{outline:3px solid #1267a5;outline-offset:2px}',
+'.ny26-v157-tools{padding:12px;margin:12px 0;border:1px solid #b9cedb;border-radius:11px;background:#edf5fa;color:#244a61;font:500 12px/1.55 system-ui,sans-serif}',
+'.ny26-v157-tools strong{display:block;font-size:14px}',
+'.ny26-v157-tools .ny26-v157-jump{margin:10px 0 3px;background:#fff}',
+'.ny26-v157-rest-hidden article.step{display:none!important}',
+'.ny26-v157-next{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px}',
+'.ny26-v157-titleline{font-size:11px;letter-spacing:.02em;font-weight:800;text-transform:uppercase;color:#365a73;margin-bottom:5px}',
+'@media(max-width:520px){.ny26-v157{margin:10px 0;padding:10px}.ny26-v157-essentials,.ny26-v157-risk{padding:9px}.ny26-v157-jump{width:100%}}',
 '@media(max-width:480px){.ny26-v157{padding:9px;font-size:12px}.ny26-v157 h3{font-size:15px}}'
 ].join('');
 const trim=v=>String(v||'').replace(/\s+/g,' ').trim();
@@ -141,21 +166,173 @@ function annotateExisting(doc,section,day){
   }
  }
 }
+// UX operacional: linha do tempo da v1.57 sem apagar os cards e anexos legados.
+const nyClock=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric',hourCycle:'h23'});
+function nyNow(){
+ const pieces=Object.fromEntries(nyClock.formatToParts(new Date()).map(x=>[x.type,x.value]));
+ return {date:pieces.year+'-'+pieces.month+'-'+pieces.day,minute:(+pieces.hour)*60+(+pieces.minute),label:pieces.hour+':'+pieces.minute};
+}
+function startMinute(stop){
+ const raw=String(stop.time||'');
+ const m=raw.match(/(?:^|[~\s])(\d{1,2})[h:](\d{2})/i);
+ return m?Number(m[1])*60+Number(m[2]):null;
+}
+function attentionForDay(day){
+ const title=(day.title||'')+' '+(day.stops||[]).map(s=>s.title).join(' ');
+ const notes=[];
+ function add(rx,summary,url){if(rx.test(title))notes.push({summary,url})}
+ add(/air and space|air & space/i,'Air and Space: quatro passes com horário, inspeção e água engarrafada permitida; alimentos externos proibidos.','https://airandspace.si.edu/visit/museum-dc/guidelines');
+ add(/estat[uú]a|liberty island|pedestal/i,'Estátua: o horário do bilhete libera a fila da segurança, não garante a saída do ferry. Mochilas e comida não entram no pedestal; armários com moeda de 25¢.','https://statuecitycruises.com/know-before-you-go/security/');
+ add(/pier 11|nyc ferry.*dum(b|bo)/i,'Pier 11: a NYC Ferry tem partidas em horários definidos. Não presumir que chegue a DUMBO até 15h10; decidir ferry/metrô antes de perder a chegada ao pôr do sol.','https://www.ferry.nyc/routes-and-schedules/east-river/');
+ add(/american museum of natural history|amnh/i,'AMNH: entrada sujeita à triagem; mochilas grandes (>11 × 17 pol.) não permitidas, e só comer nas áreas designadas.','https://www.amnh.org/plan-your-visit/code-of-conduct');
+ add(/morgan library/i,'Morgan: entrada gratuita de sexta, 17h–20h, requer reserva e liberação uma semana antes. Confirmar quatro ingressos antes de contar com esta visita.','https://www.themorgan.org/free-friday-evenings');
+ add(/jfk.*avis|federal circle/i,'JFK: locadoras ficam em Federal Circle. O AirTrain é gratuito entre terminais e Federal Circle; siga a sinalização Airport/Rental Cars.','https://www.jfkairport.com/transportation/car-rentals');
+ add(/roosevelt island tram/i,'Roosevelt Island: metrô F na ida e tram na volta são transportes distintos. Verificar operação da linha F e fila do bondinho no dia.','https://new.mta.info/');
+ add(/high st.*retorno|brooklyn bridge.*retorno|flatiron.*carnegie|retorno principal.*metr[oô]/i,'Retorno: caminhada e metrô são planos alternativos; não tente completar os dois trajetos. Se frio ou cansaço, escolha o metrô.','https://new.mta.info/');
+ add(/jfk t8|volta.*jfk|t[aá]xi amarelo.*jfk/i,'Aeroporto: confirmar capacidade real do carro para quatro pessoas e até oito volumes, antes de retirar as malas. Táxi comum pode não comportar tudo.','https://www.nyc.gov/site/tlc/passengers/passenger-frequently-asked-questions.page');
+ // Casos que aparecem apenas como planos condicionais na própria planilha.
+ if(day.date==='2026-11-07')notes.push({summary:'Filadélfia: após a área da Liberty Bell e Independence Hall, recupere o carro para Rocky Steps; conferir vaga legal na chegada.',url:'https://www.nps.gov/inde/planyourvisit/hours.htm'});
+ if(day.date==='2026-11-12')notes.push({summary:'Escolher somente um retorno do Central Park: metrô principal OU caminhada longa via fachadas/Flatiron. O roteiro não é sequencial a partir da bifurcação.',url:'https://new.mta.info/'});
+ if(day.date==='2026-11-15')notes.push({summary:'JFK: bagagens variam entre 7 e 8 volumes. Conferir espaço do veículo antes de escolher táxi amarelo; plano B Penn/LIRR/AirTrain exige carregar tudo.',url:'https://www.jfkairport.com/transportation/car-rentals'});
+ return notes.slice(0,5);
+}
+function stageFor(stop){
+ const txt=String(stop.title||'')+' '+String(stop.warning||'')+' '+String(stop.status||'');
+ if(/n[aã]o reservado|reservar em|pendente.+reserva/i.test(txt))return {text:'RESERVA PENDENTE',kind:'conditional'};
+ if(/opcional|condicional|se.+fila|se.+tempo|plano [ab]|pular se/i.test(txt))return {text:'FLEXÍVEL',kind:'conditional'};
+ if(/SUMMIT|Air and Space|Warwick|Patterson|Morgan Library|Est[aá]tua.*Liberdade|Liberty Island|voo.*JFK|JFK.*voo/i.test(stop.title||''))return {text:'HORÁRIO PRIORITÁRIO',kind:'fixed'};
+ if(/metr[oô]|ferry|tramway|LIRR|taxi|t[aá]xi|AirTrain/i.test(stop.title||''))return {text:'DESLOCAMENTO',kind:''};
+ return null;
+}
+function accessibleAction(doc,label,onClick){
+ const button=doc.createElement('button');
+ button.type='button';button.className='ny26-v157-jump';
+ button.textContent=label;button.addEventListener('click',onClick);
+ return button;
+}
+function legacyControls(doc,section,day){
+ const cards=[...section.querySelectorAll('article.step')];
+ section.querySelector('.ny26-v157-tools')?.remove();
+ section.classList.remove('ny26-v157-rest-hidden');
+ if(!cards.length)return null;
+ const toolbar=doc.createElement('div');toolbar.className='ny26-v157-tools';
+ const title=doc.createElement('strong');title.textContent='✅ Controles do roteiro: Feito, GPS e anexos';toolbar.appendChild(title);
+ const line=doc.createElement('div');line.setAttribute('aria-live','polite');toolbar.appendChild(line);
+ const toggle=accessibleAction(doc,'Mostrar controles',()=>setOpen(!isOpen()));
+ toggle.setAttribute('aria-expanded','false');
+ toolbar.appendChild(toggle);
+ const today=nyNow().date;
+ function isOpen(){return !section.classList.contains('ny26-v157-rest-hidden')}
+ function refresh(){
+  const boxes=cards.map(c=>c.querySelector('input.donecheck[data-step]')).filter(Boolean);
+  const done=boxes.filter(x=>x.checked).length;
+  line.textContent=done+' de '+boxes.length+' etapas antigas marcadas Feito. Seus registros e documentos foram mantidos.';
+  toggle.textContent=isOpen()?'Ocultar controles antigos':'Mostrar controles Feito / GPS / anexos';
+  toggle.setAttribute('aria-expanded',String(isOpen()));
+ }
+ function setOpen(open){
+  section.classList.toggle('ny26-v157-rest-hidden',!open);
+  refresh();
+ }
+ const original=cards[0];original.parentElement.insertBefore(toolbar,original);
+ setOpen(day.date===today);
+ doc.addEventListener('change',event=>{if(event.target?.matches?.('input.donecheck[data-step]')&&cards.some(c=>c.contains(event.target)))refresh()});
+ // Saltos para fotos, anexos, hash ou controles também podem reabrir a seção.
+ doc.defaultView?.addEventListener('hashchange',()=>{
+  const id=decodeURIComponent(doc.defaultView.location.hash.slice(1)||'');
+  const target=id?doc.getElementById(id):null;
+  if(target&&cards.some(c=>c.contains(target)))setOpen(true);
+ });
+ function openCard(card){
+  setOpen(true);
+  const target=card.querySelector('input.donecheck[data-step]')?.closest('label')||card;
+  target.scrollIntoView?.({behavior:'smooth',block:'center'});
+ }
+ return {cards,openCard,refresh,setOpen};
+}
+function renderOperational(doc,wrapper,day,details,legacy){
+ const now=nyNow();
+ const overview=doc.createElement('div');overview.className='ny26-v157-essentials';
+ const main=doc.createElement('strong');
+ main.textContent=day.date===now.date?'📍 Roteiro de hoje • horário de Nova York '+now.label:'🧭 Execução do dia • '+day.date.split('-').reverse().join('/');
+ overview.appendChild(main);
+ const arr=(day.stops||[]).length?day.stops:day.places||[];
+ const scheduled=arr.map((s,i)=>({s,i,min:startMinute(s)})).filter(x=>x.min!==null);
+ const next=day.date===now.date?scheduled.find(x=>x.min>=now.minute):scheduled[0];
+ const p=doc.createElement('p');
+ p.textContent=next?'Próximo horário previsto: '+String(next.s.time||'')+' • '+next.s.title:
+  'Consulte a programação; nem todas as atividades possuem horário fixo.';
+ overview.appendChild(p);
+ if(next){
+  const row=doc.createElement('div');row.className='ny26-v157-next';
+  row.appendChild(accessibleAction(doc,'Ver próxima etapa',()=>{
+   details.open=true;
+   const target=details.querySelectorAll('.ny26-v157-step')[next.i];
+   if(target){target.open=true;target.scrollIntoView?.({behavior:'smooth',block:'center'})}
+  }));
+  overview.appendChild(row);
+ }
+ const small=doc.createElement('small');
+ small.textContent='Horário planejado, não confirmação de execução. Para registrar Feito, abra os controles originais do roteiro.';
+ overview.appendChild(small);wrapper.appendChild(overview);
+ const alerts=attentionForDay(day);
+ if(alerts.length){
+  const wrap=doc.createElement('details');wrap.className='ny26-v157-risk';
+  const summary=doc.createElement('summary');summary.textContent='⚠️ Cuidados e decisões importantes ('+alerts.length+')';wrap.appendChild(summary);
+  const ul=doc.createElement('ul');
+  for(const alert of alerts){
+   const li=doc.createElement('li');li.appendChild(doc.createTextNode(alert.summary+' '));
+   if(alert.url){const a=doc.createElement('a');a.href=alert.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Consultar fonte oficial';li.appendChild(a)}
+   ul.appendChild(li);
+  }
+  wrap.appendChild(ul);wrapper.appendChild(wrap);
+ }
+ if(legacy){
+  const hint=doc.createElement('p');hint.className='ny26-v157-compare';
+  hint.textContent='A programação v1.57 é a referência atual. Feito, GPS, fotos e PDFs permanecem nos cards antigos, disponíveis em “Mostrar controles”.';
+  wrapper.appendChild(hint);
+ }
+}
 function render(doc,section,day){
  section.querySelector('.ny26-v157-day')?.remove();
+ // Conservar os artigos originais com IDs/Feito/PDF; só alternar sua visibilidade.
+ const legacy=legacyControls(doc,section,day);
  const wrapper=doc.createElement('section');wrapper.className='ny26-v157 ny26-v157-day';
- const title=doc.createElement('h3');title.textContent='🗽 Roteiro atualizado • versão 1.57';wrapper.appendChild(title);
- para(doc,wrapper,'Plano',day.title);
- para(doc,wrapper,'Prioridade',day.priority);
- const notice=doc.createElement('p');notice.className='ny26-v157-compare';
- notice.textContent='Os cards anteriores, Feito, fotos e comprovantes foram preservados. Em caso de divergência de horários/atividades, consulte esta programação mais recente.';
- wrapper.appendChild(notice);
- const details=doc.createElement('details');details.open=true;
- const sum=doc.createElement('summary');sum.textContent='Ver programação e informações ('+((day.stops||[]).length||(day.places||[]).length)+')';
- details.appendChild(sum);
- for(const stop of day.stops||[])details.appendChild(line(doc,stop));
- for(const place of day.places||[])details.appendChild(line(doc,place));
- wrapper.appendChild(details);
+ const title=doc.createElement('h3');title.textContent='🗽 Roteiro principal • Planejamento v1.57';wrapper.appendChild(title);
+ para(doc,wrapper,'Objetivo',day.title);
+ const schedule=doc.createElement('details');schedule.className='ny26-v157-program';
+ // A informação essencial fica visível; todas as descrições longas sob demanda.
+ schedule.open=false;
+ const sum=doc.createElement('summary');
+ const stops=(day.stops?.length?day.stops:day.places)||[];
+ sum.textContent='📋 Ver programação completa ('+stops.length+' etapas)';
+ schedule.appendChild(sum);
+ for(const stop of stops){
+  const item=line(doc,stop);
+  const stage=stageFor(stop);
+  if(stage){
+   const tag=doc.createElement('span');tag.className='ny26-v157-stage '+stage.kind;tag.textContent=stage.text;
+   item.querySelector('summary')?.insertAdjacentElement('afterend',tag);
+  }
+  if(legacy){
+   const candidates=legacy.cards.map(card=>({card,score:cardMatch(
+    trim(card.querySelector('.place-link')?.textContent),stop.title)})).filter(x=>x.score>=7).sort((a,b)=>b.score-a.score);
+   if(candidates.length===1||candidates[0]?.score>candidates[1]?.score){
+    if(candidates[0]){
+     item.appendChild(accessibleAction(doc,'Abrir Feito / GPS deste ponto',()=>legacy.openCard(candidates[0].card)));
+    }
+   }
+  }
+  if(stop.address&&String(stop.address).length>8){
+   const url='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(stop.address);
+   const a=doc.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';
+   a.className='ny26-v157-jump';a.textContent='📍 Abrir endereço no mapa (online)';
+   item.appendChild(a);
+  }
+  schedule.appendChild(item);
+ }
+ renderOperational(doc,wrapper,day,schedule,legacy);
+ wrapper.appendChild(schedule);
  annotateExisting(doc,section,day);
  const anchor=section.querySelector('.ny-day-brief,.ck-daylink,.ny26-live,.ny26-offline-advice,.dayheader,h1,h2,h3');
  if(anchor)anchor.insertAdjacentElement('afterend',wrapper);else section.prepend(wrapper);
