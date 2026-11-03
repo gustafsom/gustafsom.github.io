@@ -83,7 +83,7 @@ const rules=[
  'A entrada antes da hora do ingresso não é permitida e a entrada tardia não é garantida. Conferir os quatro ingressos gratuitos antes de sair.'
  ],'https://www.themorgan.org/visit/guidelines'],
  [/Memorial.*9\/11|9\/11.*Memorial/i,'⚠️ 9/11 Memorial: restrições',1,[
- 'Não levar alimentos/bebidas externos nem vidro para o memorial; respeitar o silêncio e não colocar objetos nas piscinas.',
+ 'O Memorial externo é diferente do Museu: a regra que proíbe alimentos/bebidas de fora é do Museu. Na praça, respeitar o ambiente e não colocar moedas ou objetos nas piscinas.',
  'Museu é uma visita separada, com ingresso e inspeção próprios. Não depender dos banheiros internos sem entrada para o museu.'
  ],'https://www.911memorial.org/visit/about/visitor-guidelines']
 ];
