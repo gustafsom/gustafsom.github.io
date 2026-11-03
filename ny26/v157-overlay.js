@@ -31,10 +31,14 @@ function para(doc,to,label,value,cls){
  if(label){const b=doc.createElement('b');b.textContent=label+': ';p.appendChild(b)}
  p.appendChild(doc.createTextNode(trim(value)));to.appendChild(p);
 }
-function link(doc,to,url){
- if(!/^https:\/\/[^\s<>]+$/i.test(String(url||'')))return;
- const a=doc.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';
- a.textContent='Fonte de referência';to.appendChild(a);
+function link(doc,to,source){
+ const urls=[...new Set(String(source||'').split(/\s*\|\s*/).map(v=>v.trim()).filter(v=>/^https:\/\/[^\s<>]+$/i.test(v)))];
+ for(const [i,url] of urls.entries()){
+  const a=doc.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';
+  a.textContent=i===0?'Fonte de referência':'Outra fonte';
+  if(i)to.appendChild(doc.createTextNode(' · '));
+  to.appendChild(a);
+ }
 }
 function line(doc,stop){
  const d=doc.createElement('details');d.className='ny26-v157-step';
@@ -72,13 +76,44 @@ function cardMatch(a,b){
  if(common.length<2)return 0;
  return common.length/Math.max(x.size,y.size)>=0.72?7:0;
 }
+// Consolida antigas entradas repetidas na camada v1.57, sem tocar no Firestore.
+function placeKey(name){
+ const n=matchNorm(name);
+ if(n.includes('walmart newburgh'))return 'walmart newburgh';
+ if(n.includes('walmart eddystone'))return 'walmart eddystone';
+ if(n.includes('mcdonald')&&n.includes('harriman'))return 'mcdonalds harriman';
+ if(n.includes('christiana')&&(n.includes('target')||n.includes('lojas')))return 'target christiana lojas';
+ return n;
+}
+function consolidatePlaces(places,date){
+ const out=new Map();
+ for(const item of Array.isArray(places)?places:[]){
+  if(!item||typeof item.title!=='string'||!item.title.trim())continue;
+  const k=placeKey(item.title);
+  if(!out.has(k)){out.set(k,{...item});continue}
+  const prev=out.get(k);
+  for(const [field,value] of Object.entries(item)){
+   if(field==='title'||value==null||value==='')continue;
+   if(field==='source'){
+    const links=[String(prev.source||''),String(value)].flatMap(v=>v.split(/\s*\|\s*/)).filter(Boolean);
+    prev.source=[...new Set(links)].join(' | ');
+   }else if(!prev[field])prev[field]=value;
+  }
+ }
+ const result=[...out.values()];
+ if(date==='2026-11-07'){
+  const order={'liberty bell':0,'independence hall':1,'rocky steps':2,'walmart eddystone':3};
+  result.sort((a,b)=>(order[placeKey(a.title)]??99)-(order[placeKey(b.title)]??99));
+ }
+ return result;
+}
 function annotateExisting(doc,section,day){
  const cards=[...section.querySelectorAll('article.step')],used=new Set();
  for(const card of cards){
   const title=trim(card.querySelector('.place-link')?.textContent);
   if(!title)continue;
   let best=null,score=0,bestIndex=-1;
-  (day.stops||[]).forEach((stop,i)=>{
+  (day.stops?.length?day.stops:day.places||[]).forEach((stop,i)=>{
    if(used.has(i)||!stop.why&&!stop.look&&!stop.food)return;
    const value=cardMatch(title,stop.title);
    if(value>score){best=stop;score=value;bestIndex=i}
@@ -145,14 +180,15 @@ function decorate(doc,pack){
  if(!doc.getElementById('ny26-v157-style')){
   const style=doc.createElement('style');style.id='ny26-v157-style';style.textContent=css;doc.head.appendChild(style);
  }
- const index=new Map(pack.days.map(x=>[x.date,x]));
+ const consolidatedDays=pack.days.map(d=>({...d,places:consolidatePlaces(d.places,d.date)}));
+ const index=new Map(consolidatedDays.map(x=>[x.date,x]));
  let days=0,steps=0;
  for(const section of doc.querySelectorAll('section.daypage')){
   const d=index.get(dateOf(section));if(!d)continue;
-  render(doc,section,d);days++;steps+=d.stops.length;
+  render(doc,section,d);days++;steps+=(d.stops?.length||0)+(d.places?.length||0);
  }
  foodDirectory(doc,pack);
  return {days,steps};
 }
-window.NY26V157Overlay={decorate,validate,dateOf,version:'1.57'};
+window.NY26V157Overlay={decorate,validate,dateOf,consolidatePlaces,version:'1.57'};
 })();
