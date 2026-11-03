@@ -12,6 +12,7 @@ const css=[
 '.ny26-v157-alert{background:#fff0e4;padding:7px;border-radius:6px}',
 '.ny26-v157-compare{background:#ebf0f3;padding:8px;border-radius:6px;font-size:12px}',
 '.ny26-v157-step a{color:#095c87}',
+'.ny26-v157-inline{padding:8px 10px;margin:9px 0;background:#eef7fb;border:1px solid #b8d4e3;border-radius:9px;font-size:12px}.ny26-v157-inline summary{cursor:pointer;font-weight:800}.ny26-v157-inline p{margin:6px 0;line-height:1.4}',
 '@media(max-width:480px){.ny26-v157{padding:9px;font-size:12px}.ny26-v157 h3{font-size:15px}}'
 ].join('');
 const trim=v=>String(v||'').replace(/\s+/g,' ').trim();
@@ -55,6 +56,44 @@ function validate(p){
  for(const day of p.days)if(!/^2026-11-(?:0[4-9]|1[0-6])$/.test(day.date)||!Array.isArray(day.stops)||day.stops.length>60)throw Error('Data/etapas inválidas no pacote');
  return p;
 }
+const matchNorm=v=>trim(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+ .replace(/[^a-z0-9]+/g,' ').trim();
+const stopwords=new Set(['the','de','da','do','em','na','no','para','com','mais','aqui','foto','fotos','visita','opcional','exterior','retorno','hotel','parada','ate','day','new','york','nyc']);
+function cardMatch(a,b){
+ const A=matchNorm(a),B=matchNorm(b);
+ if(!A||!B)return 0;
+ if(A===B)return 100;
+ if(Math.min(A.length,B.length)>8&&(A.includes(B)||B.includes(A)))return 9;
+ const x=new Set(A.split(' ').filter(z=>z.length>=3&&!stopwords.has(z)));
+ const y=new Set(B.split(' ').filter(z=>z.length>=3&&!stopwords.has(z)));
+ const common=[...x].filter(z=>y.has(z));
+ // Nunca casar títulos genéricos ("Almoço", "Hotel") por acidente.
+ if(common.length<2)return 0;
+ return common.length/Math.max(x.size,y.size)>=0.72?7:0;
+}
+function annotateExisting(doc,section,day){
+ const cards=[...section.querySelectorAll('article.step')],used=new Set();
+ for(const card of cards){
+  const title=trim(card.querySelector('.place-link')?.textContent);
+  if(!title)continue;
+  let best=null,score=0,bestIndex=-1;
+  (day.stops||[]).forEach((stop,i)=>{
+   if(used.has(i)||!stop.why&&!stop.look&&!stop.food)return;
+   const value=cardMatch(title,stop.title);
+   if(value>score){best=stop;score=value;bestIndex=i}
+  });
+  if(!best||score<7)continue;
+  used.add(bestIndex);
+  card.querySelector('.ny26-v157-inline')?.remove();
+  const container=card.querySelector('.stepcontent');if(!container)continue;
+  const detail=doc.createElement('details');detail.className='ny26-v157-inline';
+  const summary=doc.createElement('summary');summary.textContent='ℹ️ Informações adicionais • v1.57';detail.appendChild(summary);
+  para(doc,detail,'Por que visitar',best.why);
+  para(doc,detail,'O que observar',best.look);
+  para(doc,detail,'Tipo de comida',best.food,'ny26-v157-food');
+  container.appendChild(detail);
+ }
+}
 function render(doc,section,day){
  section.querySelector('.ny26-v157-day')?.remove();
  const wrapper=doc.createElement('section');wrapper.className='ny26-v157 ny26-v157-day';
@@ -70,6 +109,7 @@ function render(doc,section,day){
  for(const stop of day.stops||[])details.appendChild(line(doc,stop));
  for(const place of day.places||[])details.appendChild(line(doc,place));
  wrapper.appendChild(details);
+ annotateExisting(doc,section,day);
  const anchor=section.querySelector('.ny-day-brief,.ck-daylink,.ny26-live,.ny26-offline-advice,.dayheader,h1,h2,h3');
  if(anchor)anchor.insertAdjacentElement('afterend',wrapper);else section.prepend(wrapper);
 }
