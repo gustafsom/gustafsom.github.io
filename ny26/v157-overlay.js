@@ -82,7 +82,7 @@ function link(doc,to,source){
 function line(doc,stop){
  const d=doc.createElement('details');d.className='ny26-v157-step';
  const s=doc.createElement('summary');
- s.textContent=(stop.time?trim(stop.time)+' • ':'')+trim(stop.title).replace(/almo[cç]o econ[oô]mico/gi,'Almoço');
+ s.textContent=(stop.time?trim(stop.time)+' • ':'')+trim(stop.title).replace(/almo[cç]o econ[oô]mico/gi,'Almoço').replace(/retirar as sete bagagens/gi,'Retirar todas as bagagens (7 a 8 volumes)');
  d.appendChild(s);
  para(doc,d,'Situação',stop.status);
  para(doc,d,'Endereço',stop.address);
@@ -197,13 +197,14 @@ function attentionForDay(day){
  function add(rx,summary,url){if(rx.test(title))notes.push({summary,url})}
  add(/air and space|air & space/i,'Air and Space: quatro passes com horário, inspeção e água engarrafada permitida; alimentos externos proibidos.','https://airandspace.si.edu/visit/museum-dc/guidelines');
  add(/estat[uú]a|liberty island|pedestal/i,'Estátua: o horário do bilhete libera a fila da segurança, não garante a saída do ferry. Mochilas e comida não entram no pedestal; armários com moeda de 25¢.','https://statuecitycruises.com/know-before-you-go/security/');
- add(/pier 11|nyc ferry.*dum(b|bo)/i,'Pier 11: a NYC Ferry tem partidas em horários definidos. Não presumir que chegue a DUMBO até 15h10; decidir ferry/metrô antes de perder a chegada ao pôr do sol.','https://www.ferry.nyc/routes-and-schedules/east-river/');
+ add(/pier 11|nyc ferry.*dum(b|bo)/i,'Pier 11: desde 02/11 vale a grade de inverno; horários mudaram. Não presumir chegada a DUMBO às 15h10. Ferry avulso custa US$ 5 por pessoa pagante desde 19/10; conferir próxima saída e preferir metrô se perder a margem para o pôr do sol.','https://www.ferry.nyc/routes-and-schedules/east-river/');
  add(/american museum of natural history|amnh/i,'AMNH: entrada sujeita à triagem; mochilas grandes (>11 × 17 pol.) não permitidas, e só comer nas áreas designadas.','https://www.amnh.org/plan-your-visit/code-of-conduct');
  add(/morgan library/i,'Morgan: entrada gratuita de sexta, 17h–20h, requer reserva e liberação uma semana antes. Confirmar quatro ingressos antes de contar com esta visita.','https://www.themorgan.org/free-friday-evenings');
  add(/jfk.*avis|federal circle/i,'JFK: locadoras ficam em Federal Circle. O AirTrain é gratuito entre terminais e Federal Circle; siga a sinalização Airport/Rental Cars.','https://www.jfkairport.com/transportation/car-rentals');
  add(/roosevelt island tram/i,'Roosevelt Island: metrô F na ida e tram na volta são transportes distintos. Verificar operação da linha F e fila do bondinho no dia.','https://new.mta.info/');
  add(/high st.*retorno|brooklyn bridge.*retorno|flatiron.*carnegie|retorno principal.*metr[oô]/i,'Retorno: caminhada e metrô são planos alternativos; não tente completar os dois trajetos. Se frio ou cansaço, escolha o metrô.','https://new.mta.info/');
- add(/jfk t8|volta.*jfk|t[aá]xi amarelo.*jfk/i,'Aeroporto: confirmar capacidade real do carro para quatro pessoas e até oito volumes, antes de retirar as malas. Táxi comum pode não comportar tudo.','https://www.nyc.gov/site/tlc/passengers/passenger-frequently-asked-questions.page');
+ add(/jfk t8|volta.*jfk|t[aá]xi amarelo.*jfk/i,'Aeroporto: confirme carro para quatro pessoas e até oito volumes. Táxi amarelo Manhattan↔JFK tem tarifa-base oficial de US$ 70, mais pedágios, taxas e gorjeta; não há cobrança por volume, mas o porta-malas precisa comportá-los.','https://www.nyc.gov/site/tlc/passengers/taxi-fare.page');
+ if(day.date==='2026-11-11')notes.push({summary:'OMNY: passe o mesmo cartão quatro vezes no mesmo leitor, uma por passageiro. Na primeira utilização, o banco pode exigir pequena espera antes do segundo toque.',url:'https://omny.info/faq/detailed-information-on-omny'});
  // Casos que aparecem apenas como planos condicionais na própria planilha.
  if(day.date==='2026-11-07')notes.push({summary:'Filadélfia: após a área da Liberty Bell e Independence Hall, recupere o carro para Rocky Steps; conferir vaga legal na chegada.',url:'https://www.nps.gov/inde/planyourvisit/hours.htm'});
  if(day.date==='2026-11-12')notes.push({summary:'Escolher somente um retorno do Central Park: metrô principal OU caminhada longa via fachadas/Flatiron. O roteiro não é sequencial a partir da bifurcação.',url:'https://new.mta.info/'});
@@ -225,6 +226,7 @@ function accessibleAction(doc,label,onClick){
  return button;
 }
 function legacyControls(doc,section,day){
+ section.__ny26LegacyCleanup?.();section.__ny26LegacyCleanup=null;
  const cards=[...section.querySelectorAll('article.step')];
  section.querySelector('.ny26-v157-tools')?.remove();
  section.classList.remove('ny26-v157-rest-hidden');
@@ -250,13 +252,16 @@ function legacyControls(doc,section,day){
  }
  const original=cards[0];original.parentElement.insertBefore(toolbar,original);
  setOpen(day.date===today);
- doc.addEventListener('change',event=>{if(event.target?.matches?.('input.donecheck[data-step]')&&cards.some(c=>c.contains(event.target)))refresh()});
+ const changeHandler=event=>{if(event.target?.matches?.('input.donecheck[data-step]')&&cards.some(c=>c.contains(event.target)))refresh()};
+ doc.addEventListener('change',changeHandler);
  // Saltos para fotos, anexos, hash ou controles também podem reabrir a seção.
- doc.defaultView?.addEventListener('hashchange',()=>{
-  const id=decodeURIComponent(doc.defaultView.location.hash.slice(1)||'');
+ const hashHandler=()=>{
+  let id='';try{id=decodeURIComponent(doc.defaultView.location.hash.slice(1)||'')}catch{return}
   const target=id?doc.getElementById(id):null;
   if(target&&cards.some(c=>c.contains(target)))setOpen(true);
- });
+ };
+ doc.defaultView?.addEventListener('hashchange',hashHandler);
+ section.__ny26LegacyCleanup=()=>{doc.removeEventListener('change',changeHandler);doc.defaultView?.removeEventListener('hashchange',hashHandler)};
  function openCard(card){
   setOpen(true);
   const target=card.querySelector('input.donecheck[data-step]')?.closest('label')||card;
@@ -334,6 +339,7 @@ function addBranchChoice(doc,day,stopList,scope){
   root?.querySelectorAll('[data-ny26-branch]').forEach(el=>{
    el.hidden=Boolean(active&&el.dataset.ny26Branch!==active);
   });
+  root?.__ny26RhythmRefresh?.();
  }
  for(const opt of choices){
   const b=doc.createElement('button');b.type='button';b.dataset.plan=opt.value;b.textContent=opt.label;
@@ -460,6 +466,7 @@ function renderLatestRhythm(doc,wrapper,day,legacy,schedule,section){
  }
  const unsubscribe=clock?.subscribe(()=>update());
  section.__ny26RhythmCleanup=()=>{if(typeof unsubscribe==='function')unsubscribe()};
+ wrapper.__ny26RhythmRefresh=update;
  update();
 }
 function render(doc,section,day,scope){
