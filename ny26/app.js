@@ -820,7 +820,7 @@ function openFrame(html){
   try{window.NY26RouteAdvice?.decorate(doc)}catch(e){console.warn('Guia de orientacoes:',e)}
   try{window.NY26RouteEnhancements?.install(doc,TRIP+':'+user.uid)}catch(e){console.warn('Ajustes de roteiro:',e)}
   try{window.NY26FoodGuide?.decorate(doc)}catch(e){console.warn('Informações de alimentação:',e)}
-  try{if(ny26V157Data)window.NY26V157Overlay?.decorate(doc,ny26V157Data)}catch(e){console.warn('Guia v1.57:',e)}
+  try{if(ny26V157Data)window.NY26V157Overlay?.decorate(doc,ny26V157Data,TRIP+':'+user.uid)}catch(e){console.warn('Guia v1.57:',e)}
   if(window.ny26Snapshot)applySnapshot(window.ny26Snapshot);
  };
  frame.srcdoc=safe;
@@ -850,7 +850,7 @@ function setV157(data){
  try{window.NY26V157Overlay?.validate(data)}catch(e){console.warn('Pacote v1.57 inválido:',e);return}
  ny26V157Data=data;
  try{if(v157CacheKey())localStorage.setItem(v157CacheKey(),JSON.stringify(data))}catch(e){console.warn('Cache privado v1.57 indisponível:',e)}
- if(frameReady){try{window.NY26V157Overlay?.decorate($('viewer').contentDocument,data)}catch(e){console.warn('Exibição v1.57:',e)}}
+ if(frameReady){try{window.NY26V157Overlay?.decorate($('viewer').contentDocument,data,TRIP+':'+user.uid)}catch(e){console.warn('Exibição v1.57:',e)}}
 }
 function loadCachedV157(){
  if(ny26V157Data)return;
