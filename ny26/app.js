@@ -1145,18 +1145,32 @@ function serviceWorker(){if(!('serviceWorker' in navigator)||!location.protocol.
  navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
 }
 function updateReady(reg){$('notice').style.display='block';$('update-now').onclick=()=>reg.waiting?.postMessage({type:'SKIP_WAITING'})}
-function refreshReadingLabel(){
- const ui=window.NY26MobileUI,scale=ui?.currentScale?.()||1;
+function refreshReadingLabel(message){
+ const ui=window.NY26MobileUI,scale=ui?.currentScale?.()||1.1;
  $('font-current').textContent=Math.round(scale*100)+'%';
- $('font-smaller').disabled=scale<=1.001;
- $('font-larger').disabled=scale>=1.199;
+ $('font-smaller').disabled=scale<=0.901;
+ $('font-larger').disabled=scale>=1.399;
+ // Confirmacao visual enquanto a tela de configuracoes cobre o roteiro.
+ const preview=$('font-preview');
+ if(preview)preview.style.fontSize=(16*scale).toFixed(1)+'px';
+ if(message)$msg('font-feedback',message);
 }
 function changeReadingScale(direction){
  const ui=window.NY26MobileUI;
- if(!ui){$msg('settings-msg','Recurso de tamanho da letra indisponível neste cache. Verifique nova versão.');return}
- const next=ui.fontValue(ui.currentScale()+direction*0.1);
- ui.setScale($('viewer').contentDocument,next,true);
- refreshReadingLabel();
+ if(!ui){$msg('font-feedback','Atualize o NY26 para ativar o ajuste de fonte.');return}
+ const before=ui.currentScale();
+ const next=ui.fontValue(before+direction*0.1);
+ if(next===before){refreshReadingLabel('Tamanho mínimo ou máximo atingido.');return}
+ // Grava apenas a preferencia visual; nunca altera o conteudo privado.
+ ui.setScale(document,next,true);
+ const doc=$('viewer')?.contentDocument;
+ let active=false;
+ if(doc?.documentElement){
+  try{ui.install(doc);ui.setScale(doc,next,false);active=true}
+  catch(e){console.warn('Fonte do roteiro:',e)}
+ }
+ refreshReadingLabel('Fonte em '+Math.round(next*100)+'%.'+
+  (active?' Alteração aplicada ao roteiro.':' A alteração será aplicada ao abrir o roteiro.'));
 }
 $('font-smaller').onclick=()=>changeReadingScale(-1);
 $('font-larger').onclick=()=>changeReadingScale(1);
