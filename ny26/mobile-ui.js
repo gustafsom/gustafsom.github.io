@@ -2,7 +2,7 @@
    Never changes Firestore, itinerary IDs, Feito, photos, or attachments. */
 (()=>{'use strict';
 const KEY='ny26_readability_scale_v1';
-const MIN=1,MAX=1.2,STEP=0.1;
+const MIN=0.9,MAX=1.4,STEP=0.1;
 const CSS=[
 /* Safe defaults; do not reset the private itinerary's existing layout. */
 '.ny26-v157,.ny26-v157 *,article.step,article.step .stepcontent{box-sizing:border-box}',
@@ -10,11 +10,11 @@ const CSS=[
 '.page,.daypage,article.step,article.step .stepcontent,.ny26-v157{min-width:0;max-width:100%}',
 'body .stepcontent,body .sheet-text{overflow-wrap:break-word}',
 ':where(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #1680b7!important;outline-offset:2px}',
-'@media(max-width:768px){',
+/* Font sizes apply in both desktop and iframe viewports; responsive geometry stays scoped below. */
 'html{-webkit-text-size-adjust:100%;text-size-adjust:100%}',
 'body{font-size:calc(16px * var(--ny26-read-scale,1));line-height:1.55}',
 'article.step .stepcontent{font-size:calc(16px * var(--ny26-read-scale,1))!important;line-height:1.55!important}',
-'article.step .stepcontent p,article.step .stepcontent li,article.step .stepcontent .note,article.step .stepcontent .desc{font-size:calc(15.5px * var(--ny26-read-scale,1))!important;line-height:1.55!important}',
+'article.step .stepcontent p,article.step .stepcontent li,article.step .stepcontent .note,article.step .stepcontent .desc{font-size:calc(16px * var(--ny26-read-scale,1))!important;line-height:1.55!important}',
 'article.step .place-link,article.step h3,article.step h2{font-size:calc(17px * var(--ny26-read-scale,1))!important;line-height:1.38!important;overflow-wrap:anywhere}',
 'article.step .stepcontent .ny26-time-inline{font-size:calc(13.5px * var(--ny26-read-scale,1))!important;line-height:1.4!important}',
 'article.step .actions,article.step .stepcontent .actions{display:flex;flex-wrap:wrap;gap:8px}',
@@ -26,7 +26,7 @@ const CSS=[
 '#mala .pk-unified-breakdown,#mala .pk-unified-head small,#checklist small{font-size:calc(14px * var(--ny26-read-scale,1))!important;line-height:1.45!important}',
 '#mala :is(.pk-item,.pk-unified-line,.pk-label),#checklist :is(.ck-item,.ck-label){font-size:calc(15px * var(--ny26-read-scale,1))!important;line-height:1.5!important;overflow-wrap:anywhere}',
 '#mala :is(button,.pk-item-btns button),#checklist :is(button,.ck-item-btns button){min-height:44px;font-size:calc(14px * var(--ny26-read-scale,1))!important}',
-'.ny26-v157 :is(p,li,.ny26-v157-essentials p,.ny26-v157-risk li,.ny26-v157-step p,.ny26-v157-decision p,.ny26-v157-rhythm p,.ny26-v157-compare,.ny26-v157-inline p){font-size:calc(15px * var(--ny26-read-scale,1))!important;line-height:1.55!important}',
+'.ny26-v157 :is(p,li,.ny26-v157-essentials p,.ny26-v157-risk li,.ny26-v157-step p,.ny26-v157-decision p,.ny26-v157-rhythm p,.ny26-v157-compare,.ny26-v157-inline p){font-size:calc(16px * var(--ny26-read-scale,1))!important;line-height:1.55!important}',
 '.ny26-v157 :is(.ny26-v157-step summary,.ny26-v157-program>summary,.ny26-v157-risk>summary){font-size:calc(16px * var(--ny26-read-scale,1))!important;line-height:1.45!important;min-height:44px!important}',
 '.ny26-v157 :is(.ny26-v157-essentials strong,.ny26-v157-tools strong,.ny26-v157-rhythm strong){font-size:calc(16px * var(--ny26-read-scale,1))!important}',
 '.ny26-v157 :is(.ny26-v157-tools,.ny26-v157-food,.ny26-v157-food-primary,.ny26-v157-stage,.ny26-v157-decision-status){font-size:calc(14px * var(--ny26-read-scale,1))!important;line-height:1.5!important}',
@@ -44,7 +44,6 @@ const CSS=[
 '.ny26-confirm-actions button{font-size:calc(15px * var(--ny26-read-scale,1))!important;min-height:46px!important}',
 '.nav,.daytabs,.tabs{max-width:100%;min-width:0}',
 '.nav :is(a,button),.daytabs :is(a,button),.tabs :is(a,button){min-height:44px;font-size:calc(14px * var(--ny26-read-scale,1))!important}',
-'}',
 '@media(max-width:390px){',
 '.ny26-v157{padding:10px!important}',
 '.ny26-v157 :is(.ny26-v157-jump,.ny26-v157-decision-actions button){width:100%}',
@@ -65,11 +64,14 @@ function fontValue(raw){
  return Math.min(MAX,Math.max(MIN,Math.round(n*10)/10));
 }
 function currentScale(){
- try{return fontValue(localStorage.getItem(KEY)||1)}catch{return 1}
+ try{return fontValue(localStorage.getItem(KEY)||1.1)}catch{return 1.1}
 }
 function setScale(doc,val,persist){
  const value=fontValue(val);
- if(doc?.documentElement)doc.documentElement.style.setProperty('--ny26-read-scale',String(value));
+ if(doc?.documentElement){
+  doc.documentElement.style.setProperty('--ny26-read-scale',String(value));
+  doc.body?.style.setProperty('--ny26-read-scale',String(value));
+ }
  if(persist){try{localStorage.setItem(KEY,String(value))}catch{}}
  return value;
 }
@@ -133,5 +135,5 @@ function install(doc){
  }
  return changes;
 }
-window.NY26MobileUI={install,relabel,setScale,currentScale,fontValue,replacement,version:'2026-11-04'};
+window.NY26MobileUI={install,relabel,setScale,currentScale,fontValue,replacement,version:'2026-11-04-fixed-scale'};
 })();
