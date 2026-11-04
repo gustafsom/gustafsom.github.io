@@ -152,6 +152,8 @@ function sanitizeRouteHtml(source){
  // Without an explicit base, links such as #mala can navigate the iframe to
  // /ny26/#mala, recursively loading this application inside itself.
  let h=renameChildren(String(source||''));
+ // O HTML antigo continua privado, mas o rótulo de versão v1.40 não é um plano de viagem atual.
+ h=h.replace(/PLANO\s+OFICIAL\s*v\s*1[.,]40\b/gi,'ROTEIRO DO DIA');
  h=unifyPackingMarkup(h);
  h=addEmergencyMenuToRouteHtml(h);
  h=h.replace(/<script>\s*\/\*\s*NY26 v7[^\n]*\n[\s\S]*?<\/script>/gi,'');
@@ -821,6 +823,7 @@ function openFrame(html){
   try{window.NY26RouteEnhancements?.install(doc,TRIP+':'+user.uid)}catch(e){console.warn('Ajustes de roteiro:',e)}
   try{window.NY26FoodGuide?.decorate(doc)}catch(e){console.warn('Informações de alimentação:',e)}
   try{if(ny26V157Data)window.NY26V157Overlay?.decorate(doc,ny26V157Data,TRIP+':'+user.uid)}catch(e){console.warn('Guia v1.57:',e)}
+  try{window.NY26MobileUI?.install(doc)}catch(e){console.warn('Legibilidade mobile:',e)}
   if(window.ny26Snapshot)applySnapshot(window.ny26Snapshot);
  };
  frame.srcdoc=safe;
@@ -1142,7 +1145,22 @@ function serviceWorker(){if(!('serviceWorker' in navigator)||!location.protocol.
  navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
 }
 function updateReady(reg){$('notice').style.display='block';$('update-now').onclick=()=>reg.waiting?.postMessage({type:'SKIP_WAITING'})}
-function settings(){show('settings');refresh()}
+function refreshReadingLabel(){
+ const ui=window.NY26MobileUI,scale=ui?.currentScale?.()||1;
+ $('font-current').textContent=Math.round(scale*100)+'%';
+ $('font-smaller').disabled=scale<=1.001;
+ $('font-larger').disabled=scale>=1.199;
+}
+function changeReadingScale(direction){
+ const ui=window.NY26MobileUI;
+ if(!ui){$msg('settings-msg','Recurso de tamanho da letra indisponível neste cache. Verifique nova versão.');return}
+ const next=ui.fontValue(ui.currentScale()+direction*0.1);
+ ui.setScale($('viewer').contentDocument,next,true);
+ refreshReadingLabel();
+}
+$('font-smaller').onclick=()=>changeReadingScale(-1);
+$('font-larger').onclick=()=>changeReadingScale(1);
+function settings(){show('settings');refreshReadingLabel();refresh()}
 function returnFromSettings(){
   if(!user){show('setup');return}
   if($('viewer').srcdoc){
