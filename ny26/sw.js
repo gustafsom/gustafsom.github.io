@@ -1,6 +1,6 @@
 /* Somente a estrutura é pública; dados privados ficam em Firebase/armazenamento local. */
-const CACHE='ny26-shell-gh-v28';
-const SHELL=['./','./index.html','./app.js','./photos.js','./route-advice.js','./route-enhancements.js','./food-guide.js','./v157-overlay.js','./config.js','./manifest.webmanifest','./icon.svg'];
+const CACHE='ny26-shell-gh-v29';
+const SHELL=['./','./index.html','./app.js','./photos.js','./route-advice.js','./route-enhancements.js','./food-guide.js','./v157-overlay.js','./mobile-ui.js','./config.js','./manifest.webmanifest','./icon.svg'];
 const LIBS=['https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js','https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js','https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'];
 self.addEventListener('install',ev=>ev.waitUntil((async()=>{
  const c=await caches.open(CACHE);await c.addAll(SHELL);
