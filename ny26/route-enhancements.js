@@ -88,7 +88,10 @@ const rules=[
  ],'https://www.911memorial.org/visit/about/visitor-guidelines']
 ];
 function cleanText(v){
- return String(v||'').replace(/almo[cç]o\s+econ[oô]mico/gi,'Almoço')
+ return String(v||'')
+ .replace(/PLANO\s+OFICIAL\s*v\s*1[.,]40\b/gi,'ROTEIRO DO DIA')
+ .replace(/Roteiro\s*\+\s*Mala\s*v\s*1[.,]40\b/gi,'Roteiro e Mala')
+ .replace(/almo[cç]o\s+econ[oô]mico/gi,'Almoço')
  .replace(/SEM PARADA NO FORT McHENRY\/BALTIMORE\s*\(retirado do roteiro por decis[aã]o do usu[aá]rio\)\.?/gi,'')
  .replace(/\s*\(retirad[oa] do roteiro por decis[aã]o do usu[aá]rio\)/gi,'')
  .replace(/\s*\(retirad[oa] do roteiro\)/gi,'');
