@@ -5,8 +5,8 @@ const KEY='ny26_readability_scale_v1';
 const MIN=1,MAX=1.2,STEP=0.1;
 const CSS=[
 /* Safe defaults; do not reset the private itinerary's existing layout. */
-'*{box-sizing:border-box}',
-'img,video,canvas,svg{max-width:100%;height:auto}',
+'.ny26-v157,.ny26-v157 *,article.step,article.step .stepcontent{box-sizing:border-box}',
+'article.step img,.ny26-v157 img,.sheet-text img{max-width:100%;height:auto}',
 '.page,.daypage,article.step,article.step .stepcontent,.ny26-v157{min-width:0;max-width:100%}',
 'body .stepcontent,body .sheet-text{overflow-wrap:break-word}',
 ':where(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #1680b7!important;outline-offset:2px}',
