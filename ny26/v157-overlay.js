@@ -481,7 +481,8 @@ function render(doc,section,day,scope){
  section.classList.add('ny26-v157-view');
  const legacy=legacyControls(doc,section,day);
  const wrapper=doc.createElement('section');wrapper.className='ny26-v157 ny26-v157-day';
- const title=doc.createElement('h3');title.textContent='🗽 Roteiro principal • Planejamento v1.57';wrapper.appendChild(title);
+ const title=doc.createElement('h3');title.textContent='🗽 Roteiro principal • Planejamento v'+(day.revision||'1.57');wrapper.appendChild(title);
+ if(day.revisionNote){const notice=doc.createElement('p');notice.className='ny26-v157-risk';notice.textContent='🆕 Atualização do dia: '+day.revisionNote;wrapper.appendChild(notice)}
  para(doc,wrapper,'Objetivo',day.title);
  const schedule=doc.createElement('details');schedule.className='ny26-v157-program';
  // A informação essencial fica visível; todas as descrições longas sob demanda.
