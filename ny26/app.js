@@ -975,7 +975,7 @@ function offerFirstImport(){
  };
  box.append(heading,description,b);parent.appendChild(box);
 }
-function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';ny26V157Data=null;ny26V157BaseData=null;ny26V157Signature=null;ny26V157Preview=null;ny26Day07Patch=null;ny26Day07Preview=null;ny26PrivatePatches=[];ny26PendingEncrypted=null;window.ny26Snapshot=null}
+function clear(){markSecurePending(false);cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';ny26V157Data=null;ny26V157BaseData=null;ny26V157Signature=null;ny26V157Preview=null;ny26Day07Patch=null;ny26Day07Preview=null;ny26PrivatePatches=[];ny26PendingEncrypted=null;window.ny26Snapshot=null}
 async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('loading-text','Verificando permissão de acesso…');
  try{const p=db.collection('trips').doc(TRIP).collection('members').doc(u.uid);
  let snap;try{snap=await p.get({source:navigator.onLine?'default':'cache'})}catch{snap=await p.get({source:'cache'})}
