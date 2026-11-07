@@ -14,6 +14,17 @@ const css=[
 '.ny26-v157-step a{color:#095c87}',
 '.ny26-v157-inline{padding:8px 10px;margin:9px 0;background:#eef7fb;border:1px solid #b8d4e3;border-radius:9px;font-size:12px}.ny26-v157-inline summary{cursor:pointer;font-weight:800}.ny26-v157-inline p{margin:6px 0;line-height:1.4}',
 '.ny26-v157-food-primary{background:#fff8e8;border:1px solid #efd8ab;border-left:3px solid #a98028;padding:9px 11px;margin:9px 0;border-radius:9px;font:500 12px/1.48 system-ui,sans-serif;overflow-wrap:anywhere}.ny26-v157-food-primary strong{display:block;margin-bottom:4px}',
+'.ny26-day07-stop{display:block!important;box-sizing:border-box;max-width:100%;min-width:0;overflow-wrap:anywhere;margin:12px 0;padding:13px;border:1px solid #a8cbdd;border-left:5px solid #1d6d95;border-radius:12px;background:#f5fbff;color:#1c455c;box-shadow:0 2px 8px #1231}',
+'.ny26-day07-stop .ny26-day07-time{font:800 13px/1.45 system-ui,sans-serif;color:#175a7d;display:block;margin:0 0 7px}',
+'.ny26-day07-stop h3{margin:2px 0 8px;font:800 17px/1.35 system-ui,sans-serif;overflow-wrap:anywhere}',
+'.ny26-day07-stop .ny26-day07-address{font:500 14px/1.5 system-ui,sans-serif;margin:5px 0 10px}',
+'.ny26-day07-stop .ny26-day07-actions{display:flex;flex-wrap:wrap;gap:9px;min-width:0}',
+'.ny26-day07-stop .ny26-day07-actions a{display:inline-flex;min-height:46px;align-items:center;justify-content:center;padding:10px 13px;border-radius:9px;background:#12688c;color:#fff!important;text-decoration:none!important;font:800 14px/1.3 system-ui,sans-serif;overflow-wrap:anywhere}',
+'.ny26-day07-stop details{margin:10px 0 0;border-top:1px solid #c6dce5;padding:7px 0 0}',
+'.ny26-day07-stop details summary{font:800 14px/1.4 system-ui,sans-serif;min-height:44px;display:flex;align-items:center;cursor:pointer}',
+'.ny26-day07-stop details p{font:500 14px/1.5 system-ui,sans-serif;margin:7px 0}',
+'.ny26-day07-stop .ny26-day07-note{font:500 12px/1.45 system-ui,sans-serif;color:#526d7e;margin:10px 0 0}',
+'@media(max-width:390px){.ny26-day07-stop{padding:10px}.ny26-day07-stop .ny26-day07-actions a{width:100%}}',
 '.ny26-v157{background:#fff;border-color:#c8d9e3;box-shadow:0 2px 8px #1234}',
 '.ny26-v157 h3{color:#173950}',
 '.ny26-v157-essentials{margin:12px 0;padding:12px;background:#eef7fb;border-radius:11px;border:1px solid #bed8e5}',
@@ -475,8 +486,66 @@ function renderLatestRhythm(doc,wrapper,day,legacy,schedule,section){
  wrapper.__ny26RhythmRefresh=update;
  update();
 }
+function day07MapsUrl(address){
+ return 'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(address)+'&travelmode=driving';
+}
+function injectDay07Stop(doc,section,day){
+ // Operacional v1.60: adiciona um card visual DEPOIS do Walmart no roteiro legado.
+ // Nenhuma checkbox nova, nenhum ID de Feito, nenhum ID de comprovante e nenhuma mutacao do HTML privado.
+ section.querySelectorAll('[data-ny26-day07-refuel]').forEach(el=>el.remove());
+ if(day.date!=='2026-11-07'||day.revision!=='1.60')return null;
+ const stops=day.stops?.length?day.stops:day.places||[];
+ const royal=stops.find(stop=>/^Royal Farms\b/i.test(String(stop.title||'')));
+ if(!royal||!/3314 Market St/i.test(royal.address||''))return null;
+ const originals=[...section.querySelectorAll('article.step:not([data-ny26-day07-refuel])')];
+ const cardTitle=el=>(el.querySelector('.place-link')?.textContent||
+  el.querySelector('h3,h2')?.textContent||'').trim();
+ const walmart=originals.find(el=>/Walmart\s+Eddystone/i.test(cardTitle(el)));
+ const falls=originals.find(el=>/Falls\s+Church/i.test(cardTitle(el)));
+ const card=doc.createElement('article');
+ card.className='ny26-day07-stop';
+ card.dataset.ny26Day07Refuel='v1.60';
+ card.setAttribute('aria-label','Parada de abastecimento Royal Farms');
+ const time=doc.createElement('div');time.className='ny26-day07-time';
+ time.textContent='⏱ '+String(royal.time||'Após Walmart Eddystone • horário flexível');
+ card.appendChild(time);
+ const heading=doc.createElement('h3');heading.textContent='⛽ '+royal.title;card.appendChild(heading);
+ const addr=doc.createElement('p');addr.className='ny26-day07-address';
+ addr.textContent='📍 '+royal.address;card.appendChild(addr);
+ const actions=doc.createElement('div');actions.className='ny26-day07-actions';
+ const maps=doc.createElement('a');maps.href=day07MapsUrl(royal.address);
+ maps.target='_blank';maps.rel='noopener noreferrer';
+ maps.textContent='🚗 GPS • Traçar rota no Google Maps';
+ actions.appendChild(maps);card.appendChild(actions);
+ const details=doc.createElement('details');
+ const summary=doc.createElement('summary');summary.textContent='Informações sobre abastecimento';
+ details.appendChild(summary);
+ for(const [label,val] of [['Objetivo',royal.why],['Como chegar',royal.look],
+  ['Orientação',royal.instructions],['Comida',royal.food],
+  ['Banheiro',royal.bathroom],['Atenção',royal.warning]]){
+  if(!val)continue;
+  const p=doc.createElement('p');const strong=doc.createElement('strong');
+  strong.textContent=label+': ';p.appendChild(strong);
+  p.appendChild(doc.createTextNode(String(val)));details.appendChild(p);
+ }
+ card.appendChild(details);
+ const note=doc.createElement('p');note.className='ny26-day07-note';
+ note.textContent='Parada acrescentada ao planejamento v1.60. O horário é flexível e não modifica as marcações Feito anteriores.';
+ card.appendChild(note);
+ if(walmart)walmart.insertAdjacentElement('afterend',card);
+ else if(falls)falls.insertAdjacentElement('beforebegin',card);
+ else{
+  // Se o HTML antigo não possuir essa parada, posicionar após a programação v1.57.
+  const panel=section.querySelector('.ny26-v157-day');
+  if(panel)panel.insertAdjacentElement('afterend',card);
+  else section.appendChild(card);
+ }
+ return card;
+}
 function render(doc,section,day,scope){
  section.querySelector('.ny26-v157-day')?.remove();
+ // Recria o card informativo sem tocar nas etapas reais nem duplicar a parada.
+ section.querySelectorAll('[data-ny26-day07-refuel]').forEach(el=>el.remove());
  // Conservar os artigos originais com IDs/Feito/PDF; só alternar sua visibilidade.
  section.classList.add('ny26-v157-view');
  const legacy=legacyControls(doc,section,day);
@@ -486,7 +555,7 @@ function render(doc,section,day,scope){
  para(doc,wrapper,'Objetivo',day.title);
  const schedule=doc.createElement('details');schedule.className='ny26-v157-program';
  // A informação essencial fica visível; todas as descrições longas sob demanda.
- schedule.open=false;
+ schedule.open=day.revision==='1.60'&&day.date==='2026-11-07';
  const sum=doc.createElement('summary');
  const stops=(day.stops?.length?day.stops:day.places)||[];
  // Dias de deslocamento (sem horarios detalhados na v1.57) mantem os cards operacionais visiveis.
@@ -496,6 +565,7 @@ function render(doc,section,day,scope){
  schedule.appendChild(sum);
  for(const [index,stop] of stops.entries()){
   const item=line(doc,stop);
+  if(day.date==='2026-11-07'&&day.revision==='1.60'&&/^Royal Farms\b/i.test(stop.title||''))item.open=true;
   const routeBranch=branch?.label(index);
   if(routeBranch){
    item.dataset.ny26Branch=routeBranch;item.classList.add('ny26-v157-branch');
@@ -528,6 +598,7 @@ function render(doc,section,day,scope){
  renderLatestRhythm(doc,wrapper,day,legacy,schedule,section);
  if(branch){wrapper.appendChild(branch.wrap);branch.activate()}
  wrapper.appendChild(schedule);
+ injectDay07Stop(doc,section,day);
  annotateExisting(doc,section,day);
  const anchor=section.querySelector('.ny-day-brief,.ck-daylink,.ny26-live,.ny26-offline-advice,.dayheader,h1,h2,h3');
  if(anchor)anchor.insertAdjacentElement('afterend',wrapper);else section.prepend(wrapper);
