@@ -599,7 +599,9 @@ function injectPrivateUpdateCards(doc,section,day){
   const label=doc.createElement('p');label.className='ny26-day07-note';
   label.textContent='Atualização '+stop.privateUpdateId+' aprovada. Os registros Feito e anexos anteriores não foram alterados.';
   card.appendChild(label);
-  const anchor=original.find(x=>cardMatch(originalTitle(x),stop.privateAnchor)>=7);
+  // A etapa anterior pode ser um card suplementar (ex.: Royal Farms), não apenas artigo legado.
+  const anchorCandidates=[...section.querySelectorAll('article.step,[data-ny26-day07-refuel]')];
+  const anchor=anchorCandidates.find(x=>cardMatch(originalTitle(x),stop.privateAnchor)>=7);
   if(anchor)anchor.insertAdjacentElement(stop.privatePlacement==='before'?'beforebegin':'afterend',card);
   else{
    const first=section.querySelector('.ny26-v157-day');
