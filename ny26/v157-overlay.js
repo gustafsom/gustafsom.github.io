@@ -555,7 +555,7 @@ function render(doc,section,day,scope){
  para(doc,wrapper,'Objetivo',day.title);
  const schedule=doc.createElement('details');schedule.className='ny26-v157-program';
  // A informação essencial fica visível; todas as descrições longas sob demanda.
- schedule.open=day.revision==='1.60'&&day.date==='2026-11-07';
+ schedule.open=false; // Evita duplicar as paradas dos cards operacionais ao abrir o dia.
  const sum=doc.createElement('summary');
  const stops=(day.stops?.length?day.stops:day.places)||[];
  // Dias de deslocamento (sem horarios detalhados na v1.57) mantem os cards operacionais visiveis.
