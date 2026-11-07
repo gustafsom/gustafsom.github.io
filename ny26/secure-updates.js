@@ -41,7 +41,7 @@ function apply(base,patches){
    const anchor=plain(op.anchor);
    const anchorIndex=list.findIndex(x=>plain(x.title)===anchor||plain(x.title).includes(anchor));
    if(anchorIndex<0)throw Error('Referência "'+op.anchor+'" não encontrada; nenhuma alteração aplicada.');
-   const next={...op.stop};
+   const next={...op.stop,privateUpdateId:patch.id,privateAnchor:op.anchor,privatePlacement:op.position};
    const current=list.findIndex(x=>plain(x.title)===plain(next.title));
    if(current>=0){
     list[current]={...list[current],...next};
