@@ -65,7 +65,7 @@ function b64ToBytes(str){
 }
 function openKeys(){
  return new Promise((resolve,reject)=>{
-  if(!indexedDB) return reject(Error('Armazenamento seguro indisponível.'));
+  if(typeof indexedDB==='undefined') return reject(Error('Armazenamento seguro indisponível.'));
   const request=indexedDB.open(DB,1);
   request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))request.result.createObjectStore(STORE)};
   request.onerror=()=>reject(request.error||Error('Não foi possível abrir chaves.'));
