@@ -982,6 +982,7 @@ async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('l
  if(!snap.exists)throw Error('Seu usuário ainda não foi autorizado pelo administrador.');role=snap.data().role||'viewer';
  $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');$('admin-review').classList.toggle('hide',role!=='admin');$('admin-v157').classList.toggle('hide',role!=='admin');$('admin-day07').classList.toggle('hide',role!=='admin');$('admin-secure-updates').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
  subscribeContent();subscribeState();
+ if(role==='admin'&&navigator.onLine)checkSecureInbox({quiet:true}).catch(e=>console.warn('Atualizações:',e));
  }catch(e){error(e);$msg('loading-text',String(e?.message||e));show('waiting')}
 }
 
@@ -1218,6 +1219,104 @@ async function applyDay07(){
 $('day07-file').addEventListener('change',()=>{ny26Day07Preview=null;$('day07-apply').disabled=true;day07Message('Arquivo selecionado. Toque em Conferir alteração.')});
 $('day07-preview').onclick=async()=>{try{await previewDay07()}catch(e){day07Message('⚠️ '+String(e?.message||e))}};
 $('day07-apply').onclick=async()=>{try{await applyDay07()}catch(e){day07Message('⚠️ '+String(e?.message||e))}};
+// Inbox de atualizacoes: so a chave publica pode ser compartilhada.
+let secureUpdateBusy=false;
+function secureStatus(v){$msg('secure-status',v)}
+function securePreview(v){
+ const el=$('secure-preview');el.replaceChildren();el.classList.toggle('hide',!v);
+ if(v){const p=document.createElement('p');p.style.whiteSpace='pre-wrap';p.textContent=v;el.append(p)}
+}
+async function secureKeyInfo(generate=false){
+ if(!user||role!=='admin')throw Error('Acesso exclusivo do administrador.');
+ const api=window.NY26SecureUpdates;if(!api)throw Error('Módulo seguro não carregado. Atualize o aplicativo.');
+ const key=generate?await api.createKey(user.uid):await api.readKey(user.uid);
+ $('secure-public').value=key?api.registration(key):'';
+ $('secure-key-copy').disabled=!key;
+ return key;
+}
+async function checkSecureInbox({quiet=false}={}){
+ if(!user||role!=='admin'||secureUpdateBusy)return;
+ if(!navigator.onLine){if(!quiet)secureStatus('Sem conexão. Conecte para verificar atualizações.');return}
+ secureUpdateBusy=true;$('secure-check').disabled=true;
+ try{
+  const key=await secureKeyInfo(false);
+  if(!key){secureStatus('Ative a chave neste celular uma única vez; nenhum arquivo será necessário.');return}
+  const manifest=await window.NY26SecureUpdates.readInbox();
+  const approved=new Set(ny26PrivatePatches.map(x=>x.id));
+  const pending=manifest.entries.filter(x=>!approved.has(x.id));
+  if(!pending.length){
+   ny26PendingEncrypted=null;$('secure-approve').disabled=true;securePreview('');
+   secureStatus('✅ Sem atualizações pendentes. '+approved.size+' alteração(ões) aprovada(s).');
+   return;
+  }
+  const match=pending.find(x=>x.keyId===key.keyId);
+  if(!match){
+   ny26PendingEncrypted=null;$('secure-approve').disabled=true;securePreview('');
+   secureStatus('Há atualizações para outra chave. Informe a chave pública atual para republicação.');
+   return;
+  }
+  const patch=await window.NY26SecureUpdates.decrypt(key,match);
+  let reason='';
+  if(!ny26V157BaseData)reason='Roteiro mestre ainda não carregado; abra o roteiro com internet.';
+  else try{
+   let base=ny26V157BaseData;if(ny26Day07Patch)base=window.NY26DayPatch.merge(base,ny26Day07Patch);
+   window.NY26SecureUpdates.apply(base,[...ny26PrivatePatches,patch]);
+  }catch(e){reason=String(e.message||e)}
+  ny26PendingEncrypted=reason?null:patch;
+  $('secure-approve').disabled=Boolean(reason);
+  const list=patch.changes.map(x=>x.date+' • '+x.stop.title+
+   '\nReferência: '+x.anchor+' ('+x.position+')'+
+   (x.stop.address?'\nEndereço: '+x.stop.address:'')+
+   (x.stop.time?'\nHorário: '+x.stop.time:'')).join('\n\n');
+  securePreview('ATUALIZAÇÃO '+patch.id+'\n'+patch.summary+'\n\n'+list+(reason?'\n\n⚠️ '+reason:''));
+  secureStatus(reason?'Atualização detectada, mas bloqueada para proteger o roteiro.':
+   '🔔 Atualização pendente. Confira os detalhes e escolha Aprovar.');
+ }catch(e){
+  ny26PendingEncrypted=null;$('secure-approve').disabled=true;
+  secureStatus('⚠️ '+String(e.message||e));
+ }finally{secureUpdateBusy=false;$('secure-check').disabled=false}
+}
+async function approveSecureUpdate(){
+ if(role!=='admin'||!user||!ny26PendingEncrypted)throw Error('Não há atualização pendente validada.');
+ if(!navigator.onLine)throw Error('É necessário estar online para aprovar.');
+ const patch=window.NY26SecureUpdates.valid(ny26PendingEncrypted);
+ if(!ny26V157BaseData)throw Error('Roteiro não carregado.');
+ let base=ny26V157BaseData;
+ if(ny26Day07Patch)base=window.NY26DayPatch.merge(base,ny26Day07Patch);
+ window.NY26SecureUpdates.apply(base,[...ny26PrivatePatches,patch]);
+ if(!confirm('Publicar no Firebase privado?\n\n'+patch.summary+
+  '\n\nFeito, mala, ações e arquivos não serão substituídos.'))return;
+ $('secure-approve').disabled=true;secureStatus('Enviando atualização para o Firebase privado…');
+ const ref=db.collection('trips').doc(TRIP).collection('content').doc('private_update_'+patch.id);
+ try{
+  const existing=await ref.get({source:'server'});
+  if(existing.exists)throw Error('Atualização já aplicada. Atualize o app.');
+  const txt=JSON.stringify(patch);if(txt.length>=30000)throw Error('Arquivo de atualização muito grande.');
+  await ref.set({version:patch.id,index:-1,count:1,text:txt,
+   updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  setPrivatePatches([...ny26PrivatePatches,patch]);ny26PendingEncrypted=null;securePreview('');
+  secureStatus('✅ Aplicada e sincronizada no Firebase privado. Sem substituir o roteiro-base ou anexos.');
+ }catch(e){$('secure-approve').disabled=false;throw e}
+}
+$('secure-key-create').onclick=async()=>{
+ $('secure-key-create').disabled=true;secureStatus('Ativando criptografia neste celular…');
+ try{
+  const key=await secureKeyInfo(true);
+  secureStatus('✅ Chave pública pronta ('+key.keyId+'). Copie e envie uma única vez neste chat. Não compartilhe sua chave privada.');
+ }catch(e){secureStatus('⚠️ '+String(e.message||e))}
+ finally{$('secure-key-create').disabled=false}
+};
+$('secure-key-copy').onclick=async()=>{
+ const raw=$('secure-public').value;if(!raw)return;
+ try{await navigator.clipboard.writeText(raw);secureStatus('Chave pública copiada! Cole-a na conversa com o ChatGPT.')}
+ catch{
+  const field=$('secure-public');field.focus();field.select();
+  try{document.execCommand('copy');secureStatus('Chave pública selecionada/copiada. Cole-a no chat.')}
+  catch{secureStatus('Selecione e copie a chave pública manualmente.')}
+ }
+};
+$('secure-check').onclick=()=>checkSecureInbox();
+$('secure-approve').onclick=async()=>{try{await approveSecureUpdate()}catch(e){secureStatus('⚠️ '+String(e.message||e))}};
 async function importRoute(){if(role!=='admin')throw Error('Somente administrador pode importar o roteiro.');
  if(!navigator.onLine)throw Error('Conecte-se à internet para publicar o roteiro.');
  const f=$('route-import').files[0];if(!f)throw Error('Selecione o arquivo HTML privado.');
@@ -1273,7 +1372,7 @@ function changeReadingScale(direction){
 }
 $('font-smaller').onclick=()=>changeReadingScale(-1);
 $('font-larger').onclick=()=>changeReadingScale(1);
-function settings(){show('settings');refreshReadingLabel();refresh()}
+function settings(){show('settings');refreshReadingLabel();refresh();if(role==='admin')checkSecureInbox({quiet:true}).catch(e=>console.warn('Atualizações:',e))}
 function returnFromSettings(){
   if(!user){show('setup');return}
   if($('viewer').srcdoc){
