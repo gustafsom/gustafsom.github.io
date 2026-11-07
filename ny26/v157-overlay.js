@@ -24,6 +24,7 @@ const css=[
 '.ny26-day07-stop details summary{font:800 14px/1.4 system-ui,sans-serif;min-height:44px;display:flex;align-items:center;cursor:pointer}',
 '.ny26-day07-stop details p{font:500 14px/1.5 system-ui,sans-serif;margin:7px 0}',
 '.ny26-day07-stop .ny26-day07-note{font:500 12px/1.45 system-ui,sans-serif;color:#526d7e;margin:10px 0 0}',
+'.ny26-day07-parking-priority{font:800 14px/1.5 system-ui,sans-serif;color:#1c604c;background:#edf8f3;padding:9px 10px;margin:9px 0;border-radius:8px}',
 '.ny26-private-update-note{padding:8px 10px;border-radius:8px;background:#e6f1fa;color:#21526b;font:700 13px/1.5 system-ui,sans-serif}',
 '@media(max-width:390px){.ny26-day07-stop{padding:10px}.ny26-day07-stop .ny26-day07-actions a{width:100%}}',
 '.ny26-v157{background:#fff;border-color:#c8d9e3;box-shadow:0 2px 8px #1234}',
@@ -578,6 +579,7 @@ function injectPrivateUpdateCards(doc,section,day){
   time.textContent='🕒 '+String(stop.time||'Horário a confirmar');
   card.appendChild(time);
   const title=doc.createElement('h3');title.textContent='📍 '+stop.title;card.appendChild(title);
+  if(stop.status){const status=doc.createElement('p');status.className='ny26-day07-parking-priority';status.textContent='🅿️ '+stop.status;card.appendChild(status)}
   if(stop.address){
    const addr=doc.createElement('p');addr.className='ny26-day07-address';
    addr.textContent=stop.address;card.appendChild(addr);
@@ -595,6 +597,7 @@ function injectPrivateUpdateCards(doc,section,day){
    const p=doc.createElement('p');const b=doc.createElement('strong');b.textContent=label+': ';
    p.appendChild(b);p.appendChild(doc.createTextNode(String(value)));more.appendChild(p);
   }
+  if(/^https:\/\//i.test(stop.source||'')){const official=doc.createElement('a');official.href=stop.source;official.target='_blank';official.rel='noopener noreferrer';official.textContent='Regras oficiais do estacionamento (online)';more.appendChild(official)}
   card.appendChild(more);
   const label=doc.createElement('p');label.className='ny26-day07-note';
   label.textContent='Atualização '+stop.privateUpdateId+' aprovada. Os registros Feito e anexos anteriores não foram alterados.';
