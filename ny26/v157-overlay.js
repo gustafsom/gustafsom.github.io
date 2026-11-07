@@ -547,7 +547,7 @@ function injectDay07Stop(doc,section,day){
 // Show approved private updates beside the actual execution cards.
 // Visual only: never manufacture a donecheck or modify photos/attachments.
 function injectPrivateUpdateCards(doc,section,day){
- section.querySelectorAll('[data-ny26-secure-stop]').forEach(x=>x.remove());
+ section.querySelectorAll('[data-ny26-secure-stop],.ny26-private-update-note,[data-ny26-private-link]').forEach(x=>x.remove());
  const items=day.stops?.length?day.stops:day.places||[];
  const original=[...section.querySelectorAll('article.step:not([data-ny26-day07-refuel])')];
  const originalTitle=el=>trim(el.querySelector('.place-link')?.textContent||el.querySelector('h3,h2')?.textContent);
@@ -564,7 +564,7 @@ function injectPrivateUpdateCards(doc,section,day){
    note.textContent='🔄 Informações atualizadas pelo pacote '+stop.privateUpdateId;
    content.appendChild(note);
    if(stop.address){
-    const a=doc.createElement('a');a.className='ny26-v157-jump';a.target='_blank';
+    const a=doc.createElement('a');a.className='ny26-v157-jump';a.dataset.ny26PrivateLink='1';a.target='_blank';
     a.rel='noopener noreferrer';
     a.href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(stop.address)+'&travelmode=driving';
     a.textContent='📍 Traçar rota atualizada no Maps';content.appendChild(a);
