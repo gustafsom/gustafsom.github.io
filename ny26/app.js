@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id);
 const TRIP='ny26',K={actions:'ny26_checklist_v5',packing:'ny26_packing_v6',route:'ny26_v9_route_cache'};
 let auth,db,user=null,role='',cStop=null,sStop=null,frameReady=false,routeVer='',pending=false,fromCache=true,lastServer=0,registration=null;
 let lastMaps={actions:{},packing:{}},device=localStorage.getItem('ny26_client_device');
-let ny26V157Preview=null,ny26V157Backup=false,ny26V157Data=null,ny26V157Signature=null,ny26Day07Patch=null,ny26Day07Preview=null;
+let ny26V157Preview=null,ny26V157Backup=false,ny26V157Data=null,ny26V157BaseData=null,ny26V157Signature=null,ny26Day07Patch=null,ny26Day07Preview=null,ny26PrivatePatches=[],ny26PendingEncrypted=null;
 if(!device){device='d'+Date.now().toString(36)+Math.random().toString(36).slice(2);localStorage.setItem('ny26_client_device',device)}
 const $msg=(id,v)=>$(id).textContent=v||'';
 function banner(s,type='wait'){$('status').textContent=s;$('status').className='status '+type;$msg('app-message',s)}
@@ -865,29 +865,71 @@ function setDay07Patch(patch){
  if(JSON.stringify(ny26Day07Patch)===JSON.stringify(patch))return;
  ny26Day07Patch=patch;
  try{const key=day07CacheKey();if(key)localStorage.setItem(key,JSON.stringify(patch))}catch(e){console.warn('Dia 07: cache local indisponível:',e)}
- if(ny26V157Data)setV157(ny26V157Data);
+ if(ny26V157BaseData)setV157(ny26V157BaseData);
+}
+function privatePatchesKey(){return user?.uid?'ny26-private-approved-v1:'+user.uid:null}
+function decodeApprovedPatches(snapshot){
+ const patches=[];
+ for(const item of snapshot.docs){
+  if(!/^private_update_[a-z0-9-]{4,63}$/.test(item.id))continue;
+  const raw=item.data();
+  if(typeof raw?.text!=='string'||raw.text.length>30000)continue;
+  try{
+   const patch=window.NY26SecureUpdates?.valid(JSON.parse(raw.text));
+   if(patch&&item.id==='private_update_'+patch.id)patches.push(patch);
+  }catch(e){console.warn('Atualização privada inválida:',e)}
+ }
+ return patches.sort((a,b)=>a.id.localeCompare(b.id));
+}
+function cachePrivatePatches(patches){
+ const key=privatePatchesKey();
+ if(!key)return;
+ try{localStorage.setItem(key,JSON.stringify(patches))}catch(e){console.warn('Cache das atualizações aprovadas indisponível:',e)}
+}
+function restorePrivatePatches(){
+ const key=privatePatchesKey();if(!key)return;
+ try{
+  const saved=JSON.parse(localStorage.getItem(key)||'[]');
+  if(Array.isArray(saved)&&saved.length<=80)
+   ny26PrivatePatches=saved.map(p=>window.NY26SecureUpdates.valid(p));
+ }catch(e){console.warn('Atualizações locais indisponíveis:',e)}
+}
+function setPrivatePatches(patches){
+ const prior=JSON.stringify(ny26PrivatePatches);
+ const next=patches.slice().sort((a,b)=>a.id.localeCompare(b.id));
+ if(JSON.stringify(next)===prior)return;
+ ny26PrivatePatches=next;
+ cachePrivatePatches(next);
+ if(ny26V157BaseData)setV157(ny26V157BaseData);
 }
 function setV157(data){
- try{if(ny26Day07Patch)data=window.NY26DayPatch?.merge(data,ny26Day07Patch)||data}catch(e){console.warn('Ajuste 07/11 não aplicado:',e)}
+ // Keep the canonical private master unchanged; only the on-screen view is merged.
  try{window.NY26V157Overlay?.validate(data)}catch(e){console.warn('Pacote v1.57 inválido:',e);return}
- const signature=JSON.stringify(data);
+ ny26V157BaseData=data;
+ let view=data;
+ try{if(ny26Day07Patch)view=window.NY26DayPatch?.merge(view,ny26Day07Patch)||view}catch(e){console.warn('Ajuste 07/11 não aplicado:',e)}
+ try{if(ny26PrivatePatches.length)view=window.NY26SecureUpdates.apply(view,ny26PrivatePatches)}catch(e){console.warn('Atualização privada não aplicada:',e);return}
+ const signature=JSON.stringify(view);
  if(ny26V157Signature===signature)return;
  ny26V157Signature=signature;
- ny26V157Data=data;
+ ny26V157Data=view;
+ // Save ONLY original source, never a twice-merged view.
  try{if(v157CacheKey())localStorage.setItem(v157CacheKey(),JSON.stringify(data))}catch(e){console.warn('Cache privado v1.57 indisponível:',e)}
- if(frameReady){try{window.NY26V157Overlay?.decorate($('viewer').contentDocument,data,TRIP+':'+user.uid)}catch(e){console.warn('Exibição v1.57:',e)}}
+ if(frameReady){try{window.NY26V157Overlay?.decorate($('viewer').contentDocument,view,TRIP+':'+user.uid)}catch(e){console.warn('Exibição v1.57:',e)}}
 }
 function loadCachedV157(){
  if(ny26V157Data)return;
  try{const key=v157CacheKey();if(!key)return;const obj=JSON.parse(localStorage.getItem(key)||'null');if(obj)setV157(obj)}catch(e){console.warn('Cache v1.57 não disponível:',e)}
 }
 function subscribeContent(){cStop?.();cStop=db.collection('trips').doc(TRIP).collection('content').onSnapshot({includeMetadataChanges:true},snap=>{
+ const patches=decodeApprovedPatches(snap);
+ if(!snap.metadata.fromCache||patches.length)setPrivatePatches(patches);
  const p07=decodeDay07(snap);if(p07)setDay07Patch(p07);
  const refV157=decodeV157(snap);if(refV157)setV157(refV157);else loadCachedV157();
  const d=decodeContent(snap);if(d)applyRoute(d.html,d.version,snap.metadata.fromCache);
  else if(!routeVer)$msg('loading-text','A conta está ativa, mas o roteiro ainda não foi importado na área privada.');
 },e=>{error('Roteiro indisponível: '+e.message);const c=cachedRoute();if(c)applyRoute(c.html,c.version,true)});
- loadCachedDay07();loadCachedV157();
+ loadCachedDay07();restorePrivatePatches();loadCachedV157();
  const c=cachedRoute();if(c&&!routeVer)applyRoute(c.html,c.version,true);
 }
 function applySnapshot(snap){window.ny26Snapshot=snap;pending=snap.metadata.hasPendingWrites;fromCache=snap.metadata.fromCache;if(!pending&&!fromCache)lastServer=Date.now();
@@ -933,12 +975,12 @@ function offerFirstImport(){
  };
  box.append(heading,description,b);parent.appendChild(box);
 }
-function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';ny26V157Data=null;ny26V157Signature=null;ny26V157Preview=null;ny26Day07Patch=null;ny26Day07Preview=null;window.ny26Snapshot=null}
+function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';ny26V157Data=null;ny26V157BaseData=null;ny26V157Signature=null;ny26V157Preview=null;ny26Day07Patch=null;ny26Day07Preview=null;ny26PrivatePatches=[];ny26PendingEncrypted=null;window.ny26Snapshot=null}
 async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('loading-text','Verificando permissão de acesso…');
  try{const p=db.collection('trips').doc(TRIP).collection('members').doc(u.uid);
  let snap;try{snap=await p.get({source:navigator.onLine?'default':'cache'})}catch{snap=await p.get({source:'cache'})}
  if(!snap.exists)throw Error('Seu usuário ainda não foi autorizado pelo administrador.');role=snap.data().role||'viewer';
- $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');$('admin-review').classList.toggle('hide',role!=='admin');$('admin-v157').classList.toggle('hide',role!=='admin');$('admin-day07').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
+ $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');$('admin-review').classList.toggle('hide',role!=='admin');$('admin-v157').classList.toggle('hide',role!=='admin');$('admin-day07').classList.toggle('hide',role!=='admin');$('admin-secure-updates').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
  subscribeContent();subscribeState();
  }catch(e){error(e);$msg('loading-text',String(e?.message||e));show('waiting')}
 }
