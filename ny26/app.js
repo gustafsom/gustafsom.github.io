@@ -1222,6 +1222,12 @@ $('day07-apply').onclick=async()=>{try{await applyDay07()}catch(e){day07Message(
 // Inbox de atualizacoes: so a chave publica pode ser compartilhada.
 let secureUpdateBusy=false;
 function secureStatus(v){$msg('secure-status',v)}
+function markSecurePending(ready){
+ const gear=$('show-settings');if(!gear)return;
+ gear.classList.toggle('ny26-updates-ready',Boolean(ready));
+ gear.textContent=ready?'⚙️ •':'⚙️';
+ gear.setAttribute('aria-label',ready?'Conta e configurações — nova atualização pendente':'Conta e configurações');
+}
 function securePreview(v){
  const el=$('secure-preview');el.replaceChildren();el.classList.toggle('hide',!v);
  if(v){const p=document.createElement('p');p.style.whiteSpace='pre-wrap';p.textContent=v;el.append(p)}
@@ -1245,12 +1251,14 @@ async function checkSecureInbox({quiet=false}={}){
   const approved=new Set(ny26PrivatePatches.map(x=>x.id));
   const pending=manifest.entries.filter(x=>!approved.has(x.id));
   if(!pending.length){
+   markSecurePending(false);
    ny26PendingEncrypted=null;$('secure-approve').disabled=true;securePreview('');
    secureStatus('✅ Sem atualizações pendentes. '+approved.size+' alteração(ões) aprovada(s).');
    return;
   }
   const match=pending.find(x=>x.keyId===key.keyId);
   if(!match){
+   markSecurePending(false);
    ny26PendingEncrypted=null;$('secure-approve').disabled=true;securePreview('');
    secureStatus('Há atualizações para outra chave. Informe a chave pública atual para republicação.');
    return;
@@ -1263,6 +1271,7 @@ async function checkSecureInbox({quiet=false}={}){
    window.NY26SecureUpdates.apply(base,[...ny26PrivatePatches,patch]);
   }catch(e){reason=String(e.message||e)}
   ny26PendingEncrypted=reason?null:patch;
+  markSecurePending(true);
   $('secure-approve').disabled=Boolean(reason);
   const list=patch.changes.map(x=>x.date+' • '+x.stop.title+
    '\nReferência: '+x.anchor+' ('+x.position+')'+
@@ -1294,7 +1303,7 @@ async function approveSecureUpdate(){
   const txt=JSON.stringify(patch);if(txt.length>=30000)throw Error('Arquivo de atualização muito grande.');
   await ref.set({version:patch.id,index:-1,count:1,text:txt,
    updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
-  setPrivatePatches([...ny26PrivatePatches,patch]);ny26PendingEncrypted=null;securePreview('');
+  setPrivatePatches([...ny26PrivatePatches,patch]);ny26PendingEncrypted=null;markSecurePending(false);securePreview('');
   secureStatus('✅ Aplicada e sincronizada no Firebase privado. Sem substituir o roteiro-base ou anexos.');
  }catch(e){$('secure-approve').disabled=false;throw e}
 }
@@ -1519,6 +1528,6 @@ async function verifyLocalData(){
 $('check-integrity').onclick=()=>verifyLocalData();
 $('test-offline').onclick=async()=>{const c=cachedRoute();const names=await caches.keys().catch(()=>[]);const messages=[c?.html?.length>10000?'✓ Roteiro salvo':'✗ Roteiro ainda não armazenado',names.some(name=>name.startsWith('ny26-shell-gh-v'))?'✓ Estrutura em cache':'✗ App ainda não está em cache',user?'✓ Sessão ativa':'✗ Sem login'];
  $msg('settings-msg',messages.join(' · ')+' — faça também o teste real em modo avião nos dois aparelhos.');};
-window.addEventListener('offline',refresh);window.addEventListener('online',()=>{refresh();registration?.update().catch(()=>{})});
+window.addEventListener('offline',refresh);window.addEventListener('online',()=>{refresh();registration?.update().catch(()=>{});if(role==='admin')checkSecureInbox({quiet:true}).catch(e=>console.warn('Atualizações:',e))});
 boot();
 })();
