@@ -24,6 +24,7 @@ const css=[
 '.ny26-day07-stop details summary{font:800 14px/1.4 system-ui,sans-serif;min-height:44px;display:flex;align-items:center;cursor:pointer}',
 '.ny26-day07-stop details p{font:500 14px/1.5 system-ui,sans-serif;margin:7px 0}',
 '.ny26-day07-stop .ny26-day07-note{font:500 12px/1.45 system-ui,sans-serif;color:#526d7e;margin:10px 0 0}',
+'.ny26-private-update-note{padding:8px 10px;border-radius:8px;background:#e6f1fa;color:#21526b;font:700 13px/1.5 system-ui,sans-serif}',
 '@media(max-width:390px){.ny26-day07-stop{padding:10px}.ny26-day07-stop .ny26-day07-actions a{width:100%}}',
 '.ny26-v157{background:#fff;border-color:#c8d9e3;box-shadow:0 2px 8px #1234}',
 '.ny26-v157 h3{color:#173950}',
@@ -229,6 +230,7 @@ function attentionForDay(day){
  return notes.slice(0,5);
 }
 function stageFor(stop){
+ if(stop.privateUpdateId)return {text:'ATUALIZAÇÃO APROVADA',kind:'conditional'};
  const txt=String(stop.title||'')+' '+String(stop.warning||'')+' '+String(stop.status||'');
  if(/n[aã]o reservado|reservar em|pendente.+reserva/i.test(txt))return {text:'RESERVA PENDENTE',kind:'conditional'};
  if(/opcional|condicional|se.+fila|se.+tempo|plano [ab]|pular se/i.test(txt))return {text:'FLEXÍVEL',kind:'conditional'};
@@ -542,6 +544,71 @@ function injectDay07Stop(doc,section,day){
  }
  return card;
 }
+// Show approved private updates beside the actual execution cards.
+// Visual only: never manufacture a donecheck or modify photos/attachments.
+function injectPrivateUpdateCards(doc,section,day){
+ section.querySelectorAll('[data-ny26-secure-stop]').forEach(x=>x.remove());
+ const items=day.stops?.length?day.stops:day.places||[];
+ const original=[...section.querySelectorAll('article.step:not([data-ny26-day07-refuel])')];
+ const originalTitle=el=>trim(el.querySelector('.place-link')?.textContent||el.querySelector('h3,h2')?.textContent);
+ const changed=items.filter(x=>x.privateUpdateId);
+ let inserted=0;
+ for(const stop of changed){
+  if(day.date==='2026-11-07'&&day.revision==='1.60'&&/^Royal Farms\b/i.test(stop.title||''))continue;
+  const matched=original.find(x=>cardMatch(originalTitle(x),stop.title)>=7);
+  if(matched){
+   const content=matched.querySelector('.stepcontent')||matched;
+   let note=content.querySelector('.ny26-private-update-note');
+   if(note)note.remove();
+   note=doc.createElement('p');note.className='ny26-private-update-note';
+   note.textContent='🔄 Informações atualizadas pelo pacote '+stop.privateUpdateId;
+   content.appendChild(note);
+   if(stop.address){
+    const a=doc.createElement('a');a.className='ny26-v157-jump';a.target='_blank';
+    a.rel='noopener noreferrer';
+    a.href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(stop.address)+'&travelmode=driving';
+    a.textContent='📍 Traçar rota atualizada no Maps';content.appendChild(a);
+   }
+   continue;
+  }
+  const card=doc.createElement('article');
+  card.className='ny26-day07-stop ny26-private-update-card';
+  card.dataset.ny26SecureStop=stop.privateUpdateId+':'+stop.title;
+  const time=doc.createElement('div');time.className='ny26-day07-time';
+  time.textContent='🕒 '+String(stop.time||'Horário a confirmar');
+  card.appendChild(time);
+  const title=doc.createElement('h3');title.textContent='📍 '+stop.title;card.appendChild(title);
+  if(stop.address){
+   const addr=doc.createElement('p');addr.className='ny26-day07-address';
+   addr.textContent=stop.address;card.appendChild(addr);
+   const actions=doc.createElement('div');actions.className='ny26-day07-actions';
+   const link=doc.createElement('a');
+   link.href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(stop.address)+'&travelmode=driving';
+   link.target='_blank';link.rel='noopener noreferrer';link.textContent='🚗 Traçar rota no Google Maps';
+   actions.appendChild(link);card.appendChild(actions);
+  }
+  const more=doc.createElement('details');
+  const summary=doc.createElement('summary');summary.textContent='Informações desta parada';more.appendChild(summary);
+  for(const [label,value] of [['Objetivo',stop.why],['Como executar',stop.instructions],
+    ['Alimentação',stop.food],['Banheiro',stop.bathroom],['Atenção',stop.warning]]){
+   if(!value)continue;
+   const p=doc.createElement('p');const b=doc.createElement('strong');b.textContent=label+': ';
+   p.appendChild(b);p.appendChild(doc.createTextNode(String(value)));more.appendChild(p);
+  }
+  card.appendChild(more);
+  const label=doc.createElement('p');label.className='ny26-day07-note';
+  label.textContent='Atualização '+stop.privateUpdateId+' aprovada. Os registros Feito e anexos anteriores não foram alterados.';
+  card.appendChild(label);
+  const anchor=original.find(x=>cardMatch(originalTitle(x),stop.privateAnchor)>=7);
+  if(anchor)anchor.insertAdjacentElement(stop.privatePlacement==='before'?'beforebegin':'afterend',card);
+  else{
+   const first=section.querySelector('.ny26-v157-day');
+   if(first)first.insertAdjacentElement('afterend',card);else section.appendChild(card);
+  }
+  inserted++;
+ }
+ return inserted;
+}
 function render(doc,section,day,scope){
  section.querySelector('.ny26-v157-day')?.remove();
  // Recria o card informativo sem tocar nas etapas reais nem duplicar a parada.
@@ -599,6 +666,7 @@ function render(doc,section,day,scope){
  if(branch){wrapper.appendChild(branch.wrap);branch.activate()}
  wrapper.appendChild(schedule);
  injectDay07Stop(doc,section,day);
+ injectPrivateUpdateCards(doc,section,day);
  annotateExisting(doc,section,day);
  const anchor=section.querySelector('.ny-day-brief,.ck-daylink,.ny26-live,.ny26-offline-advice,.dayheader,h1,h2,h3');
  if(anchor)anchor.insertAdjacentElement('afterend',wrapper);else section.prepend(wrapper);
