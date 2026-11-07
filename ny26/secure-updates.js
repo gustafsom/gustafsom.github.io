@@ -18,6 +18,7 @@ function valid(p){
   if(!/^2026-11-(?:0[4-9]|1[0-8])$/.test(change.date||''))throw Error('Data fora da viagem.');
   if(change.position!=='after'&&change.position!=='before')throw Error('Posicionamento inválido.');
   if(typeof change.anchor!=='string'||!change.anchor.trim()||change.anchor.length>120)throw Error('Local de referência inválido.');
+  if(change.fallbackAnchor!==undefined&&(typeof change.fallbackAnchor!=='string'||!change.fallbackAnchor.trim()||change.fallbackAnchor.length>120))throw Error('Referência alternativa inválida.');
   if(!change.stop||typeof change.stop.title!=='string'||!change.stop.title.trim()||change.stop.title.length>140)throw Error('Etapa inválida.');
   for(const [key,value] of Object.entries(change.stop)){
    if(!fields.has(key)||typeof value!=='string'||value.length>2000)throw Error('Campo não autorizado: '+key);
@@ -38,10 +39,15 @@ function apply(base,patches){
    const day=working.find(d=>d.date===op.date);
    if(!day)throw Error('Dia '+op.date+' indisponível; atualização '+patch.id+' não aplicada.');
    const field=day.stops.length?'stops':'places',list=day[field];
-   const anchor=plain(op.anchor);
-   const anchorIndex=list.findIndex(x=>plain(x.title)===anchor||plain(x.title).includes(anchor));
+   const candidates=[op.anchor,...(op.fallbackAnchor?[op.fallbackAnchor]:[])];
+   let anchorIndex=-1,matchedAnchor='';
+   for(const candidate of candidates){
+    const normalized=plain(candidate);
+    const i=list.findIndex(x=>plain(x.title)===normalized||plain(x.title).includes(normalized));
+    if(i>=0){anchorIndex=i;matchedAnchor=candidate;break}
+   }
    if(anchorIndex<0)throw Error('Referência "'+op.anchor+'" não encontrada; nenhuma alteração aplicada.');
-   const next={...op.stop,privateUpdateId:patch.id,privateAnchor:op.anchor,privatePlacement:op.position};
+   const next={...op.stop,privateUpdateId:patch.id,privateAnchor:matchedAnchor,privatePlacement:op.position};
    const current=list.findIndex(x=>plain(x.title)===plain(next.title));
    if(current>=0){
     list[current]={...list[current],...next};
