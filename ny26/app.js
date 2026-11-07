@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id);
 const TRIP='ny26',K={actions:'ny26_checklist_v5',packing:'ny26_packing_v6',route:'ny26_v9_route_cache'};
 let auth,db,user=null,role='',cStop=null,sStop=null,frameReady=false,routeVer='',pending=false,fromCache=true,lastServer=0,registration=null;
 let lastMaps={actions:{},packing:{}},device=localStorage.getItem('ny26_client_device');
-let ny26V157Preview=null,ny26V157Backup=false,ny26V157Data=null,ny26V157Signature=null;
+let ny26V157Preview=null,ny26V157Backup=false,ny26V157Data=null,ny26V157Signature=null,ny26Day07Patch=null,ny26Day07Preview=null;
 if(!device){device='d'+Date.now().toString(36)+Math.random().toString(36).slice(2);localStorage.setItem('ny26_client_device',device)}
 const $msg=(id,v)=>$(id).textContent=v||'';
 function banner(s,type='wait'){$('status').textContent=s;$('status').className='status '+type;$msg('app-message',s)}
@@ -849,7 +849,26 @@ function decodeV157(snap){
  if(chunks.length!==manifest.count||chunks.some((x,i)=>x.index!==i))return null;
  try{return JSON.parse(chunks.map(x=>x.text||'').join(''))}catch{return null}
 }
+function day07CacheKey(){return user?.uid?'ny26-private-day07-v160:'+user.uid:null}
+function decodeDay07(snapshot){
+ const snap=snapshot.docs.find(d=>d.id==='day07_patch');if(!snap)return null;
+ const raw=snap.data();if(!raw?.text||raw.text.length>15000)return null;
+ try{return window.NY26DayPatch?.validate(JSON.parse(raw.text))||null}catch(e){console.warn('Dia 07 atualizado inválido:',e);return null}
+}
+function loadCachedDay07(){
+ try{const key=day07CacheKey();if(!key)return;
+  const raw=localStorage.getItem(key);if(raw)ny26Day07Patch=window.NY26DayPatch?.validate(JSON.parse(raw))||null
+ }catch(e){console.warn('Cache do dia 07 indisponível:',e)}
+}
+function setDay07Patch(patch){
+ window.NY26DayPatch?.validate(patch);
+ if(JSON.stringify(ny26Day07Patch)===JSON.stringify(patch))return;
+ ny26Day07Patch=patch;
+ try{const key=day07CacheKey();if(key)localStorage.setItem(key,JSON.stringify(patch))}catch(e){console.warn('Dia 07: cache local indisponível:',e)}
+ if(ny26V157Data)setV157(ny26V157Data);
+}
 function setV157(data){
+ try{if(ny26Day07Patch)data=window.NY26DayPatch?.merge(data,ny26Day07Patch)||data}catch(e){console.warn('Ajuste 07/11 não aplicado:',e)}
  try{window.NY26V157Overlay?.validate(data)}catch(e){console.warn('Pacote v1.57 inválido:',e);return}
  const signature=JSON.stringify(data);
  if(ny26V157Signature===signature)return;
@@ -863,11 +882,12 @@ function loadCachedV157(){
  try{const key=v157CacheKey();if(!key)return;const obj=JSON.parse(localStorage.getItem(key)||'null');if(obj)setV157(obj)}catch(e){console.warn('Cache v1.57 não disponível:',e)}
 }
 function subscribeContent(){cStop?.();cStop=db.collection('trips').doc(TRIP).collection('content').onSnapshot({includeMetadataChanges:true},snap=>{
+ const p07=decodeDay07(snap);if(p07)setDay07Patch(p07);
  const refV157=decodeV157(snap);if(refV157)setV157(refV157);else loadCachedV157();
  const d=decodeContent(snap);if(d)applyRoute(d.html,d.version,snap.metadata.fromCache);
  else if(!routeVer)$msg('loading-text','A conta está ativa, mas o roteiro ainda não foi importado na área privada.');
 },e=>{error('Roteiro indisponível: '+e.message);const c=cachedRoute();if(c)applyRoute(c.html,c.version,true)});
- loadCachedV157();
+ loadCachedDay07();loadCachedV157();
  const c=cachedRoute();if(c&&!routeVer)applyRoute(c.html,c.version,true);
 }
 function applySnapshot(snap){window.ny26Snapshot=snap;pending=snap.metadata.hasPendingWrites;fromCache=snap.metadata.fromCache;if(!pending&&!fromCache)lastServer=Date.now();
@@ -913,12 +933,12 @@ function offerFirstImport(){
  };
  box.append(heading,description,b);parent.appendChild(box);
 }
-function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';ny26V157Data=null;ny26V157Signature=null;ny26V157Preview=null;window.ny26Snapshot=null}
+function clear(){cStop?.();sStop?.();cStop=sStop=null;frameReady=false;routeVer='';ny26V157Data=null;ny26V157Signature=null;ny26V157Preview=null;ny26Day07Patch=null;ny26Day07Preview=null;window.ny26Snapshot=null}
 async function logged(u){user=u;show('waiting');banner('🔒 Validando');$msg('loading-text','Verificando permissão de acesso…');
  try{const p=db.collection('trips').doc(TRIP).collection('members').doc(u.uid);
  let snap;try{snap=await p.get({source:navigator.onLine?'default':'cache'})}catch{snap=await p.get({source:'cache'})}
  if(!snap.exists)throw Error('Seu usuário ainda não foi autorizado pelo administrador.');role=snap.data().role||'viewer';
- $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');$('admin-review').classList.toggle('hide',role!=='admin');$('admin-v157').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
+ $msg('identity',(u.email||'Usuário')+' • '+role);$('admin-import').classList.toggle('hide',role!=='admin');$('admin-review').classList.toggle('hide',role!=='admin');$('admin-v157').classList.toggle('hide',role!=='admin');$('admin-day07').classList.toggle('hide',role!=='admin');if(role==='admin')offerFirstImport();
  subscribeContent();subscribeState();
  }catch(e){error(e);$msg('loading-text',String(e?.message||e));show('waiting')}
 }
@@ -1119,6 +1139,43 @@ async function applyV157(){
  $('v157-backup').disabled=true;$('v157-apply').disabled=true;
  v157Message('✅ Guia v1.57 publicado. Os dois celulares receberão as novas informações ao sincronizar. Marcações Feito e anexos não foram modificados.');
 }
+function day07Message(message){$msg('day07-status',message)}
+async function previewDay07(){
+ if(role!=='admin')throw Error('Somente administrador pode atualizar o dia.');
+ const file=$('day07-file').files?.[0];if(!file)throw Error('Selecione o arquivo JSON do dia 07/11.');
+ if(file.size>15000)throw Error('Arquivo maior que o limite.');
+ const patch=window.NY26DayPatch.validate(JSON.parse(await file.text()));
+ const pack=ny26V157Data;
+ if(!pack)throw Error('O roteiro privado v1.57 ainda não foi carregado. Abra o roteiro com internet antes de atualizar o dia 07.');
+ window.NY26DayPatch.merge(pack,patch); // verifies insertion after Walmart
+ ny26Day07Preview=patch;
+ $('day07-apply').disabled=false;
+ day07Message('Conferido: dia 07/11 • v1.60. A parada de abastecimento será adicionada após Walmart Eddystone, sem substituir Feito, listas, comprovantes ou outros dias.');
+}
+async function applyDay07(){
+ if(role!=='admin'||!ny26Day07Preview)throw Error('Confira o arquivo antes de publicar.');
+ if(!navigator.onLine)throw Error('Conecte à internet para publicar a atualização privada.');
+ const patch=window.NY26DayPatch.validate(ny26Day07Preview);
+ if(!confirm('Aplicar SOMENTE o ajuste 07/11 v1.60? Nenhum outro dia, Feito, checklist ou anexo será modificado.'))return;
+ const value=JSON.stringify(patch);
+ if(value.length>15000)throw Error('Atualização excedeu limite seguro.');
+ const version='v160-'+Date.now().toString(36);
+ const docRef=db.collection('trips').doc(TRIP).collection('content').doc('day07_patch');
+ $('day07-apply').disabled=true;
+ day07Message('Publicando alteração isolada do dia 07/11…');
+ try{
+  await docRef.set({version,index:-1,count:1,text:value,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  setDay07Patch(patch);
+  ny26Day07Preview=null;
+  day07Message('✅ Dia 07/11 atualizado em privado. Abastecimento Royal Farms incluído após Walmart. Outros dias e registros Feito intactos. Reabra o roteiro para conferir.');
+ }catch(e){
+  $('day07-apply').disabled=false;
+  throw e;
+ }
+}
+$('day07-file').addEventListener('change',()=>{ny26Day07Preview=null;$('day07-apply').disabled=true;day07Message('Arquivo selecionado. Toque em Conferir alteração.')});
+$('day07-preview').onclick=async()=>{try{await previewDay07()}catch(e){day07Message('⚠️ '+String(e?.message||e))}};
+$('day07-apply').onclick=async()=>{try{await applyDay07()}catch(e){day07Message('⚠️ '+String(e?.message||e))}};
 async function importRoute(){if(role!=='admin')throw Error('Somente administrador pode importar o roteiro.');
  if(!navigator.onLine)throw Error('Conecte-se à internet para publicar o roteiro.');
  const f=$('route-import').files[0];if(!f)throw Error('Selecione o arquivo HTML privado.');
