@@ -16,13 +16,13 @@ O site é público, mas o roteiro e os dados da família são privados. Por isso
 ```json
 {
   "schema": "ny26-private-patch-v1",
-  "id": "2026-11-07-exemplo-01",
+  "id": "2026-11-10-exemplo-01",
   "summary": "Resumo objetivo da mudança",
   "changes": [
     {
       "type": "upsert_stop",
-      "date": "2026-11-07",
-      "anchor": "Walmart Eddystone",
+      "date": "2026-11-10",
+      "anchor": "Local anterior",
       "position": "after",
       "stop": {
         "title": "Exemplo",
@@ -42,7 +42,7 @@ As únicas mudanças permitidas inicialmente são a inclusão ou atualização d
 ```json
 {
   "schema": "ny26-encrypted-update-v1",
-  "id": "2026-11-07-exemplo-01",
+  "id": "2026-11-10-exemplo-01",
   "keyId": "<fingerprint de 24 dígitos hexadecimais>",
   "iv": "<base64, nonce AES-GCM de 12 bytes>",
   "wrappedKey": "<base64, chave AES protegida por RSA-OAEP SHA-256>",
