@@ -1,0 +1,11 @@
+{
+  "schema": "ny26-public-encryption-key-v1",
+  "keyId": "08ca5cf3c28758942b7a8b05",
+  "jwk": {
+    "kty": "RSA",
+    "n": "-e5Vs52irpuFBxxhxyFKiTGeVruA5KosmcVog5PsQ75JkjGkf8kUl1Ht015IFpOQj9OMXVFMLHI0-Sefb_8n5U4yZhmxblvP_GIoP7Iln6zmyj6ODPzMjnYvmW-uRrNAwkWOyI9bmDGohfBQQPZobWnOE-htRLJdYygfykGX6rBRfZ5nFW0ZxhIPrC5_zMRFUI7ljHHazVwRmI7zY8NGdaPru3Ezd-y4qKuZlIFDISFruVCQ6U7Ahglp86u4TJNkIASCx5e06TK2p9nktr2NwJD7lgftNTp2J498sQwzL1V1I2YINCnSN-qNYTtb5txIWkXwmDXCdtT_7PO-ARlnlf-xF4MenPqQD_6JyeYHzSjU_tOcYNrzkzw0pRXQb5Sfok-qfzZ0IGFCJPxXTfk6zthBb1TexsFRY5G3DGI9-NpO_SKCD3ZN8KYSReOL0sLo5d0--nJsBzdqzDSH5eU4mFJ5cukCG172RDQ89FcSpLYuEjw5YwQ7AIGoJduUcBDT",
+    "e": "AQAB",
+    "alg": "RSA-OAEP-256",
+    "ext": true
+  }
+}
