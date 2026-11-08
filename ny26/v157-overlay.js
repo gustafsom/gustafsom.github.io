@@ -26,6 +26,7 @@ const css=[
 '.ny26-day07-stop .ny26-day07-note{font:500 12px/1.45 system-ui,sans-serif;color:#526d7e;margin:10px 0 0}',
 '.ny26-day07-parking-priority{font:800 14px/1.5 system-ui,sans-serif;color:#1c604c;background:#edf8f3;padding:9px 10px;margin:9px 0;border-radius:8px}',
 '.ny26-private-update-note{padding:8px 10px;border-radius:8px;background:#e6f1fa;color:#21526b;font:700 13px/1.5 system-ui,sans-serif}',
+'.ny26-private-hidden-stop{display:none!important}',
 '@media(max-width:390px){.ny26-day07-stop{padding:10px}.ny26-day07-stop .ny26-day07-actions a{width:100%}}',
 '.ny26-v157{background:#fff;border-color:#c8d9e3;box-shadow:0 2px 8px #1234}',
 '.ny26-v157 h3{color:#173950}',
@@ -247,7 +248,7 @@ function accessibleAction(doc,label,onClick){
 }
 function legacyControls(doc,section,day){
  section.__ny26LegacyCleanup?.();section.__ny26LegacyCleanup=null;
- const cards=[...section.querySelectorAll('article.step')];
+ const cards=[...section.querySelectorAll('article.step')].filter(card=>!card.classList.contains('ny26-private-hidden-stop'));
  section.querySelector('.ny26-v157-tools')?.remove();
  section.classList.remove('ny26-v157-rest-hidden');
  if(!cards.length)return null;
@@ -547,6 +548,15 @@ function injectDay07Stop(doc,section,day){
 }
 // Show approved private updates beside the actual execution cards.
 // Visual only: never manufacture a donecheck or modify photos/attachments.
+function hideReplacedStops(section,day){
+ // Mantém os cards e inputs no DOM para preservar Feito/anexos; altera só visibilidade.
+ const hidden=(day.hiddenStopTitles||[]).filter(x=>x==='wawa');
+ for(const card of section.querySelectorAll('article.step')){
+  const title=trim(card.querySelector('.place-link')?.textContent||card.querySelector('h2,h3')?.textContent).toLowerCase();
+  const isTarget=day.date==='2026-11-08'&&hidden.some(x=>title.includes(x));
+  card.classList.toggle('ny26-private-hidden-stop',isTarget);
+ }
+}
 function injectPrivateUpdateCards(doc,section,day){
  section.querySelectorAll('[data-ny26-secure-stop],.ny26-private-update-note,[data-ny26-private-link]').forEach(x=>x.remove());
  const items=day.stops?.length?day.stops:day.places||[];
@@ -610,8 +620,11 @@ function injectPrivateUpdateCards(doc,section,day){
   label.textContent='Atualização '+stop.privateUpdateId+' aprovada. Os registros Feito e anexos anteriores não foram alterados.';
   card.appendChild(label);
   // A etapa anterior pode ser um card suplementar (ex.: Royal Farms), não apenas artigo legado.
-  const anchorCandidates=[...section.querySelectorAll('article.step,[data-ny26-day07-refuel]')];
-  const anchor=anchorCandidates.find(x=>cardMatch(originalTitle(x),stop.privateAnchor)>=7);
+  const anchorCandidates=[...section.querySelectorAll('article.step,[data-ny26-day07-refuel],[data-ny26-secure-stop]')];
+  const anchor=anchorCandidates.find(x=>{
+   const a=matchNorm(originalTitle(x)),b=matchNorm(stop.privateAnchor);
+   return cardMatch(a,b)>=7||(b.includes('wawa')&&a.includes('wawa'));
+  });
   if(anchor)anchor.insertAdjacentElement(stop.privatePlacement==='before'?'beforebegin':'afterend',card);
   else{
    // Uma atualização anterior pode não estar disponível; ainda assim o estacionamento
@@ -630,6 +643,7 @@ function render(doc,section,day,scope){
  // Recria o card informativo sem tocar nas etapas reais nem duplicar a parada.
  section.querySelectorAll('[data-ny26-day07-refuel]').forEach(el=>el.remove());
  // Conservar os artigos originais com IDs/Feito/PDF; só alternar sua visibilidade.
+ hideReplacedStops(section,day);
  section.classList.add('ny26-v157-view');
  const legacy=legacyControls(doc,section,day);
  const wrapper=doc.createElement('section');wrapper.className='ny26-v157 ny26-v157-day';
