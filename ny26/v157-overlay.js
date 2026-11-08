@@ -166,7 +166,9 @@ function consolidatePlaces(places,date){
 // Nenhum ID, etapa original, Feito ou anexo é gravado/modificado.
 function day08Phase(stop){
  const n=matchNorm(stop?.title||'');
+ if(/saida do hotel|saida de falls church|check out falls church/.test(n))return -1;
  if(/estacionamento|parking|buscar vaga|procurar vaga/.test(n))return 0;
+ if(/almoco rapido|pausa para almoco|lanche apos museu/.test(n))return 2.5;
  if(/air and space|museu do ar|museu aeroespacial/.test(n))return 1;
  if(/capitol|capitolio/.test(n))return 2;
  if(/washington monument|monumento a washington/.test(n))return 3;
@@ -179,9 +181,11 @@ function day08Phase(stop){
  return 6.5; // atração sem grupo conhecido fica no fim das visitas em DC
 }
 const day08Windows={
+ '-1':'08h00–08h20 • ESTIMATIVA: saída de Falls Church',
  0:'09h00–09h30 • ESTIMATIVA: buscar vaga legal',
  1:'10h00 • INGRESSO CONFIRMADO (entrada e raio X)',
  2:'11h40–12h00 • estimativa (exterior)',
+ 2.5:'12h00–12h25 • refeição rápida, sem filas',
  3:'12h35–12h50 • estimativa (exterior)',
  4:'13h00–13h15 • estimativa (exterior)',
  5:'13h30–13h55 • estimativa (exterior)',
@@ -195,12 +199,17 @@ function day08Chronology(day){
  const active=day.stops?.length?'stops':'places';
  const source=day[active]||[];
  const filtered=source.filter(stop=>!/\bwawa\b/i.test(matchNorm(stop?.title||'')));
+ if(!filtered.some(x=>day08Phase(x)===-1))filtered.push({title:'Saída do hotel em Falls Church',time:day08Windows[-1],status:'Café da manhã começa às 07h30; conferir check-out e saída com antecedência',why:'Preservar o ingresso do museu às 10h. Não comprometer o horário procurando vagas distantes.'});
+ if(!filtered.some(x=>day08Phase(x)===0))filtered.push({title:'Buscar estacionamento legal perto do National Mall',time:day08Windows[0],status:'PRIORIDADE: procurar vaga na rua, gratuita apenas se sinalização permitir',warning:'Não existe vaga gratuita garantida. Verificar regras da rua e deixar margem para chegar ao museu às 09h40. Os locais exatos do GPS ficam na atualização privada de estacionamento.'});
+ if(!filtered.some(x=>day08Phase(x)===2.5))filtered.push({title:'Almoço rápido / lanche após o museu',time:day08Windows[2.5],status:'FLEXÍVEL — reduzir ou pular se estiver atrasado',food:'Lanches trazidos no carro ou opção rápida sem fila. Não levar alimentos externos para dentro do Air and Space.'});
+ if(!filtered.some(x=>day08Phase(x)===9))filtered.push({title:'Seguir ao hotel em Delaware',time:day08Windows[9],status:'Conferir endereço do comprovante de hospedagem antes de sair de Christiana',warning:'Não usar uma localização de hotel inferida; abrir o endereço salvo na reserva.'});
  const ordered=filtered.map((stop,i)=>{
   const phase=day08Phase(stop),entry={...stop};
   // Não substituir horários informados pelo viajante. O restante é janela sugerida.
   if(!entry.time)entry.time=day08Windows[phase]||'Após visitas em Washington • estimativa';
   if(phase===1){
    entry.time='10h00 • INGRESSO CONFIRMADO';
+   if(!entry.address)entry.address='650 Jefferson Dr SW, Washington, DC 20560, USA';
    const security='ENTRADA: 650 Jefferson Dr SW, lado do National Mall. Chegar à fila por volta de 09h40–09h45. Detector de metais; bolsas podem passar por raio X ou revista manual. Sem comida nem bebidas externas, exceto água engarrafada.';
    if(!String(entry.warning||'').includes('Detector de metais'))entry.warning=[security,entry.warning].filter(Boolean).join(' ');
    entry.instructions=[String(entry.instructions||''),'Ter os 4 passes com horário disponíveis. Entrada permitida a partir das 10h; fila e inspeção não são dispensadas.'].filter(Boolean).join(' ');
@@ -264,7 +273,7 @@ function attentionForDay(day){
  const title=(day.title||'')+' '+(day.stops||[]).map(s=>s.title).join(' ');
  const notes=[];
  function add(rx,summary,url){if(rx.test(title))notes.push({summary,url})}
- add(/air and space|air & space/i,'Air and Space: quatro passes com horário, inspeção e água engarrafada permitida; alimentos externos proibidos.','https://airandspace.si.edu/visit/museum-dc/guidelines');
+ add(/air and space|air & space/i,'Air and Space às 10h: chegar à Jefferson Drive por volta de 09h40–09h45 com os quatro passes. TODOS passam por detector de metais; bolsas podem ser revistadas manualmente ou por raio X. Água engarrafada permitida; comida e outras bebidas externas proibidas.','https://airandspace.si.edu/visit/museum-dc/guidelines');
  add(/estat[uú]a|liberty island|pedestal/i,'Estátua: o horário do bilhete libera a fila da segurança, não garante a saída do ferry. Mochilas e comida não entram no pedestal; armários com moeda de 25¢.','https://statuecitycruises.com/know-before-you-go/security/');
  add(/pier 11|nyc ferry.*dum(b|bo)/i,'Pier 11: desde 02/11 vale a grade de inverno; horários mudaram. Não presumir chegada a DUMBO às 15h10. Ferry avulso custa US$ 5 por pessoa pagante desde 19/10; conferir próxima saída e preferir metrô se perder a margem para o pôr do sol.','https://www.ferry.nyc/routes-and-schedules/east-river/');
  add(/american museum of natural history|amnh/i,'AMNH: entrada sujeita à triagem; mochilas grandes (>11 × 17 pol.) não permitidas, e só comer nas áreas designadas.','https://www.amnh.org/plan-your-visit/code-of-conduct');
@@ -749,10 +758,12 @@ function render(doc,section,day,scope){
     }
    }
   }
-  if(stop.address&&String(stop.address).length>8){
-   const url='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(stop.address)+'&travelmode=driving';
+  if((stop.address&&String(stop.address).length>8)||day.date==='2026-11-08'&&[1,2,3,4,5,6].includes(day08Phase(stop))){
+   const target=stop.address||stop.title+', Washington, DC';
+   const travel=day.date==='2026-11-08'&&[1,2,3,4,5,6].includes(day08Phase(stop))?'walking':'driving';
+   const url='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(target)+'&travelmode='+travel;
    const a=doc.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';
-   a.className='ny26-v157-jump';a.textContent='🚗 GPS • Traçar rota (Google Maps)';
+   a.className='ny26-v157-jump';a.textContent=travel==='walking'?'🚶 GPS a pé • Google Maps':'🚗 GPS de carro • Google Maps';
    item.appendChild(a);
    if(day.date==='2026-11-08'&&stop.backupAddress){
     const alt=doc.createElement('a');alt.href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(stop.backupAddress)+'&travelmode=driving';
