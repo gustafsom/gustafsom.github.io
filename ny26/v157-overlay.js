@@ -30,6 +30,7 @@ const css=[
 '.ny26-day08-cards-mode .ny26-day08-guide{margin:12px 0 15px;padding:12px;border-radius:12px;background:#edf7fc;border:1px solid #b9d8e7;min-width:0}',
 '.ny26-day08-guide strong{font:800 17px/1.4 system-ui,sans-serif;color:#194f6b}',
 '.ny26-day08-guide p{font:500 14px/1.5 system-ui,sans-serif;color:#29465b;margin:8px 0}',
+'.ny26-day08-legacy-note{font:700 13px/1.5 system-ui,sans-serif;color:#835600;background:#fff4db;padding:10px;border-radius:8px;margin:12px 0}',
 '.ny26-day08-cards-mode article.step{display:block;min-width:0;max-width:100%;overflow-wrap:anywhere}',
 '.ny26-day08-cards-mode article.step.ny26-private-hidden-stop{display:none!important}',
 '.ny26-day08-cards-mode article.step.ny26-day08-original .ny26-time-inline{display:none!important}',
@@ -221,8 +222,12 @@ function day08Chronology(day){
  if(!filtered.some(x=>day08Phase(x)===9))filtered.push({title:'Seguir ao hotel em Delaware',time:day08Windows[9],status:'Conferir endereço do comprovante de hospedagem antes de sair de Christiana',warning:'Não usar uma localização de hotel inferida; abrir o endereço salvo na reserva.'});
  const ordered=filtered.map((stop,i)=>{
   const phase=day08Phase(stop),entry={...stop};
-  // Não substituir horários informados pelo viajante. O restante é janela sugerida.
-  if(!entry.time)entry.time=day08Windows[phase]||'Após visitas em Washington • estimativa';
+  // V43 ordenava os cards, mas preservava HORÁRIOS ANTIGOS contraditórios.
+  // Para o dia 08, substituir apenas a apresentação das janelas estimadas.
+  // Os dados do roteiro privado e horários de Feito permanecem intactos.
+  if(Object.prototype.hasOwnProperty.call(day08Windows,phase))
+   entry.time=day08Windows[phase];
+  else if(!entry.time)entry.time='Após as visitas em Washington • estimativa';
   if(phase===1){
    entry.time='10h00 • INGRESSO CONFIRMADO';
    if(!entry.address)entry.address='650 Jefferson Dr SW, Washington, DC 20560, USA';
@@ -783,11 +788,11 @@ function day08DocsLink(doc){
  const a=doc.createElement('a');a.href='#documentos';a.className='ny26-day08-link ny26-day08-docs';
  a.textContent='📎 Comprovantes';return a;
 }
-function day08ExtraCard(doc,stop,phase){
+function day08ExtraCard(doc,stop,phase,index){
  const card=doc.createElement('article');card.className='ny26-day08-extra';
  card.dataset.ny26Day08Extra='1';
  const time=doc.createElement('div');time.className='ny26-day08-time';
- time.textContent='⏱ '+String(stop.time||'Horário flexível');card.appendChild(time);
+ time.textContent=String(index).padStart(2,'0')+' • ⏱ '+String(stop.time||'Horário flexível');card.appendChild(time);
  const title=doc.createElement('h3');title.textContent=stop.title;card.appendChild(title);
  if(stop.address){
   const address=doc.createElement('p');address.className='ny26-day08-address';address.textContent='📍 '+stop.address;card.appendChild(address);
@@ -813,14 +818,14 @@ function day08ExtraCard(doc,stop,phase){
  if(info.children.length>1)card.appendChild(info);
  return card;
 }
-function day08ExistingCard(doc,card,stop,phase){
+function day08ExistingCard(doc,card,stop,phase,index){
  card.classList.add('ny26-day08-original');
  const inside=card.querySelector('.stepcontent')||card;
  inside.querySelector('.ny26-day08-time')?.remove();
  inside.querySelector('.ny26-day08-actions')?.remove();
  inside.querySelector('.ny26-day08-more')?.remove();
  const time=doc.createElement('div');time.className='ny26-day08-time';
- time.textContent='⏱ '+String(stop.time||'Horário flexível');
+ time.textContent=String(index).padStart(2,'0')+' • ⏱ '+String(stop.time||'Horário flexível');
  // Horário visível mesmo quando os detalhes originais estão recolhidos.
  card.insertBefore(time,card.firstChild);
  const existingMap=card.querySelector('a[href*="google.com/maps"],a[href*="maps.app.goo.gl"],a[href*="maps.apple.com"]');
@@ -873,7 +878,7 @@ function renderDay08Cards(doc,section,day){
  section.__ny26LegacyCleanup=null;section.__ny26RhythmCleanup=null;
  section.querySelector('.ny26-v157-day')?.remove();
  section.querySelector('.ny26-v157-tools')?.remove();
- section.querySelectorAll('.ny26-day08-extra,.ny26-day08-time,.ny26-day08-actions,.ny26-day08-more,.ny26-day08-guide,[data-ny26-secure-stop],.ny26-private-update-note,[data-ny26-private-link]').forEach(x=>x.remove());
+ section.querySelectorAll('.ny26-day08-extra,.ny26-day08-time,.ny26-day08-actions,.ny26-day08-more,.ny26-day08-guide,.ny26-day08-legacy-note,[data-ny26-secure-stop],.ny26-private-update-note,[data-ny26-private-link]').forEach(x=>x.remove());
  section.classList.remove('ny26-v157-rest-hidden','ny26-v157-view');
  section.classList.add('ny26-day08-cards-mode');
  hideReplacedStops(section,day);
@@ -882,12 +887,12 @@ function renderDay08Cards(doc,section,day){
  const assignments=day08MatchCards(cards,stops);
  const parent=cards[0]?.parentElement||section;
  const placed=[];
- for(const {stop,card,phase} of assignments){
+ for(const [index,{stop,card,phase}] of assignments.entries()){
   if(card){
-   day08ExistingCard(doc,card,stop,phase);
+   day08ExistingCard(doc,card,stop,phase,index+1);
    placed.push(card);
   }else{
-   const extra=day08ExtraCard(doc,stop,phase);
+   const extra=day08ExtraCard(doc,stop,phase,index+1);
    // Extra cards are separate locations; never emulate a Feito checkbox.
    parent.appendChild(extra);placed.push(extra);
   }
@@ -897,6 +902,11 @@ function renderDay08Cards(doc,section,day){
  const full=[...placed,...remaining];
  const orderCheck=day08OrderInPlace(parent,full);
  if(!orderCheck.aligned)console.warn('NY26: verificação de ordem 08/11 falhou.',orderCheck);
+ if(remaining.length){
+  const legacyNote=doc.createElement('p');legacyNote.className='ny26-day08-legacy-note';
+  legacyNote.textContent='Outras etapas do roteiro antigo, fora da sequência principal. Confira antes de executar; os registros de Feito e os anexos permanecem disponíveis.';
+  remaining[0].insertAdjacentElement('beforebegin',legacyNote);
+ }
  const guide=doc.createElement('div');guide.className='ny26-day08-guide';
  const heading=doc.createElement('strong');heading.textContent='📍 08/11 • roteiro por local';guide.appendChild(heading);
  const note=doc.createElement('p');
