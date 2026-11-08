@@ -176,8 +176,8 @@ function day08Phase(stop){
  if(/lincoln memorial/.test(n))return 5;
  if(/white house|casa branca/.test(n))return 6;
  if(/abastec|gas station|royal farms|posto de combustivel/.test(n))return 7;
- if(/christiana|target|dollar tree|lojas|compras|delaware|newark/.test(n))return 8;
  if(/quality inn|hotel|hospedagem/.test(n))return 9;
+ if(/christiana|target|dollar tree|lojas|compras|delaware|newark/.test(n))return 8;
  return 6.5; // atração sem grupo conhecido fica no fim das visitas em DC
 }
 const day08Windows={
@@ -192,7 +192,7 @@ const day08Windows={
  6:'14h20–14h40 • estimativa (exterior)',
  7:'Após 14h40 • saída de Washington (flexível)',
  8:'Após abastecer • opcional, se houver tempo',
- 9:'Depois das compras • sem horário fixo'
+ 9:'Após Christiana/Delaware • sem horário fixo'
 };
 function day08Chronology(day){
  if(day?.date!=='2026-11-08')return day;
