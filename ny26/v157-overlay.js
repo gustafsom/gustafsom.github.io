@@ -27,6 +27,22 @@ const css=[
 '.ny26-day07-parking-priority{font:800 14px/1.5 system-ui,sans-serif;color:#1c604c;background:#edf8f3;padding:9px 10px;margin:9px 0;border-radius:8px}',
 '.ny26-private-update-note{padding:8px 10px;border-radius:8px;background:#e6f1fa;color:#21526b;font:700 13px/1.5 system-ui,sans-serif}',
 '.ny26-private-hidden-stop{display:none!important}',
+'.ny26-day08-cards-mode .ny26-day08-guide{margin:12px 0 15px;padding:12px;border-radius:12px;background:#edf7fc;border:1px solid #b9d8e7;min-width:0}',
+'.ny26-day08-guide strong{font:800 17px/1.4 system-ui,sans-serif;color:#194f6b}',
+'.ny26-day08-guide p{font:500 14px/1.5 system-ui,sans-serif;color:#29465b;margin:8px 0}',
+'.ny26-day08-cards-mode article.step{display:block;min-width:0;max-width:100%;overflow-wrap:anywhere}',
+'.ny26-day08-cards-mode article.step.ny26-private-hidden-stop{display:none!important}',
+'.ny26-day08-cards-mode article.step.ny26-day08-original .ny26-time-inline{display:none!important}',
+'.ny26-day08-time{display:block;max-width:100%;background:#e7f2fa;border-left:4px solid #26709a;border-radius:6px;padding:8px 10px;margin:6px 0 11px;font:800 15px/1.5 system-ui,sans-serif;color:#18516e;overflow-wrap:anywhere}',
+'.ny26-day08-extra{display:block;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid #b7d4e3;border-left:4px solid #16719b;border-radius:12px;background:#f9fcff;padding:13px;margin:12px 0;overflow-wrap:anywhere}',
+'.ny26-day08-extra h3{font:800 17px/1.4 system-ui,sans-serif;color:#184760;margin:7px 0}',
+'.ny26-day08-extra p,.ny26-day08-more p{font:500 15px/1.55 system-ui,sans-serif;margin:8px 0}',
+'.ny26-day08-status{background:#f4f8e7;padding:7px;border-radius:8px}',
+'.ny26-day08-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;min-width:0}',
+'.ny26-day08-link{display:inline-flex;align-items:center;justify-content:center;min-height:46px;max-width:100%;box-sizing:border-box;border:1px solid #87b4cb;border-radius:9px;padding:10px 13px;background:#eaf5fb;color:#155a80!important;text-decoration:none!important;font:800 14px/1.4 system-ui,sans-serif;overflow-wrap:anywhere;text-align:center}',
+'.ny26-day08-more{border-top:1px solid #d1e1eb;padding-top:7px;margin:10px 0}',
+'.ny26-day08-more>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font:800 15px/1.4 system-ui,sans-serif}',
+'@media(max-width:420px){.ny26-day08-actions .ny26-day08-link{width:100%}.ny26-day08-extra{padding:11px}.ny26-day08-time{font-size:15px}}',
 '@media(max-width:390px){.ny26-day07-stop{padding:10px}.ny26-day07-stop .ny26-day07-actions a{width:100%}}',
 '.ny26-v157{background:#fff;border-color:#c8d9e3;box-shadow:0 2px 8px #1234}',
 '.ny26-v157 h3{color:#173950}',
@@ -714,7 +730,163 @@ function injectPrivateUpdateCards(doc,section,day){
  }
  return inserted;
 }
+// 08/11 compact operational mode. Use the ORIGINAL article.step DOM nodes.
+// They retain their IDs, checked state, event listeners, photos, GPS and receipts.
+function day08MatchCards(cards,stops){
+ const used=new Set(),mapped=[];
+ const title=card=>trim(card.querySelector('.place-link')?.textContent||
+  card.querySelector('h3,h2')?.textContent||'');
+ for(const stop of stops){
+  const phase=day08Phase(stop);
+  let best=null,score=0;
+  for(const card of cards){
+   if(used.has(card))continue;
+   const match=cardMatch(title(card),stop.title);
+   if(match>score){best=card;score=match}
+  }
+  // Location identity is stable for these phases; never match generic hotel/food names.
+  if(score<7&&[-1,0,1,2,3,4,5,6,7,9].includes(phase)){
+   best=cards.find(card=>!used.has(card)&&day08Phase({title:title(card)})===phase)||null;
+   score=best?6:0;
+  }
+  if(score<6)best=null;
+  if(best)used.add(best);
+  mapped.push({stop,card:best,phase});
+ }
+ return mapped;
+}
+function day08MapsLink(doc,stop,phase,text){
+ const addr=stop.address||(phase>=1&&phase<=6?stop.title+', Washington, DC':'');
+ if(!addr)return null;
+ const a=doc.createElement('a');
+ const mode=phase>=1&&phase<=6?'walking':'driving';
+ a.href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(addr)+'&travelmode='+mode;
+ a.target='_blank';a.rel='noopener noreferrer';
+ a.textContent=text||(mode==='walking'?'🚶 GPS a pé':'🚗 GPS de carro');
+ a.className='ny26-day08-link';
+ return a;
+}
+function day08DocsLink(doc){
+ if(!doc.getElementById('documentos'))return null;
+ const a=doc.createElement('a');a.href='#documentos';a.className='ny26-day08-link ny26-day08-docs';
+ a.textContent='📎 Comprovantes';return a;
+}
+function day08ExtraCard(doc,stop,phase){
+ const card=doc.createElement('article');card.className='ny26-day08-extra';
+ card.dataset.ny26Day08Extra='1';
+ const time=doc.createElement('div');time.className='ny26-day08-time';
+ time.textContent='⏱ '+String(stop.time||'Horário flexível');card.appendChild(time);
+ const title=doc.createElement('h3');title.textContent=stop.title;card.appendChild(title);
+ if(stop.address){
+  const address=doc.createElement('p');address.className='ny26-day08-address';address.textContent='📍 '+stop.address;card.appendChild(address);
+ }
+ if(stop.status){const note=doc.createElement('p');note.className='ny26-day08-status';note.textContent=stop.status;card.appendChild(note)}
+ const actions=doc.createElement('div');actions.className='ny26-day08-actions';
+ const gps=day08MapsLink(doc,stop,phase);
+ if(gps)actions.appendChild(gps);
+ if(stop.backupAddress){
+  const alt=day08MapsLink(doc,{address:stop.backupAddress},0,'🅿️ GPS alternativa');
+  if(alt)actions.appendChild(alt);
+ }
+ const docs=day08DocsLink(doc);if(docs)actions.appendChild(docs);
+ if(actions.children.length)card.appendChild(actions);
+ const info=doc.createElement('details');info.className='ny26-day08-more';
+ const summary=doc.createElement('summary');summary.textContent='Informações e cuidados';info.appendChild(summary);
+ for(const [label,value] of [['Objetivo',stop.why],['Como fazer',stop.instructions],
+  ['Banheiro',stop.bathroom],['Alimentação',stop.food],['Atenção',stop.warning]]){
+  if(!value)continue;
+  const p=doc.createElement('p');const b=doc.createElement('strong');b.textContent=label+': ';
+  p.appendChild(b);p.appendChild(doc.createTextNode(String(value)));info.appendChild(p);
+ }
+ if(info.children.length>1)card.appendChild(info);
+ return card;
+}
+function day08ExistingCard(doc,card,stop,phase){
+ card.classList.add('ny26-day08-original');
+ const inside=card.querySelector('.stepcontent')||card;
+ inside.querySelector('.ny26-day08-time')?.remove();
+ inside.querySelector('.ny26-day08-actions')?.remove();
+ inside.querySelector('.ny26-day08-more')?.remove();
+ const time=doc.createElement('div');time.className='ny26-day08-time';
+ time.textContent='⏱ '+String(stop.time||'Horário flexível');
+ inside.insertBefore(time,inside.firstChild);
+ const existingMap=card.querySelector('a[href*="google.com/maps"],a[href*="maps.app.goo.gl"],a[href*="maps.apple.com"]');
+ const actions=doc.createElement('div');actions.className='ny26-day08-actions';
+ // Keep the original GPS intact, but provide updated directions when needed.
+ const gps=(!existingMap||stop.privateUpdateId)?day08MapsLink(doc,stop,phase,stop.privateUpdateId?'📍 GPS atualizado':null):null;
+ if(gps)actions.appendChild(gps);
+ if(stop.backupAddress){
+  const alt=day08MapsLink(doc,{address:stop.backupAddress},0,'🅿️ GPS alternativa');
+  if(alt)actions.appendChild(alt);
+ }
+ const docs=day08DocsLink(doc);
+ if(docs&&!card.querySelector('a[href="#documentos"]'))actions.appendChild(docs);
+ if(actions.children.length){inside.appendChild(actions)}
+ if(stop.warning||stop.instructions||stop.bathroom){
+  const info=doc.createElement('details');info.className='ny26-day08-more';
+  const summary=doc.createElement('summary');summary.textContent='Cuidados desta parada';info.appendChild(summary);
+  if(phase===1)info.open=true; // Museum security is the important exception.
+  for(const [label,value] of [['Como fazer',stop.instructions],['Banheiro',stop.bathroom],['Atenção',stop.warning]]){
+   if(!value)continue;
+   const p=doc.createElement('p');const b=doc.createElement('strong');b.textContent=label+': ';
+   p.appendChild(b);p.appendChild(doc.createTextNode(String(value)));info.appendChild(p);
+  }
+  inside.appendChild(info);
+ }
+}
+function day08OrderInPlace(parent,ordered){
+ // Move existing DOM nodes; NEVER clone or replace a step and its attachments.
+ const candidates=()=>[...parent.children].filter(node=>
+  node.matches?.('article.step,article.ny26-day08-extra'));
+ const allowed=new Set(ordered);
+ const subset=ordered.filter(x=>x.parentElement===parent&&allowed.has(x));
+ for(let i=0;i<subset.length;i++){
+  const live=candidates()[i];
+  if(live&&live!==subset[i])parent.insertBefore(subset[i],live);
+ }
+}
+function renderDay08Cards(doc,section,day){
+ section.__ny26LegacyCleanup?.();section.__ny26RhythmCleanup?.();
+ section.__ny26LegacyCleanup=null;section.__ny26RhythmCleanup=null;
+ section.querySelector('.ny26-v157-day')?.remove();
+ section.querySelector('.ny26-v157-tools')?.remove();
+ section.querySelectorAll('.ny26-day08-extra,.ny26-day08-time,.ny26-day08-actions,.ny26-day08-more,.ny26-day08-guide,[data-ny26-secure-stop],.ny26-private-update-note,[data-ny26-private-link]').forEach(x=>x.remove());
+ section.classList.remove('ny26-v157-rest-hidden','ny26-v157-view');
+ section.classList.add('ny26-day08-cards-mode');
+ hideReplacedStops(section,day);
+ const cards=[...section.querySelectorAll('article.step')].filter(x=>!x.classList.contains('ny26-private-hidden-stop'));
+ const stops=day.stops?.length?day.stops:day.places||[];
+ const assignments=day08MatchCards(cards,stops);
+ const parent=cards[0]?.parentElement||section;
+ const placed=[];
+ for(const {stop,card,phase} of assignments){
+  if(card){
+   day08ExistingCard(doc,card,stop,phase);
+   placed.push(card);
+  }else{
+   const extra=day08ExtraCard(doc,stop,phase);
+   // Extra cards are separate locations; never emulate a Feito checkbox.
+   parent.appendChild(extra);placed.push(extra);
+  }
+ }
+ // Keep any original cards that were not confidently matched, with their controls.
+ const remaining=cards.filter(card=>!placed.includes(card));
+ const full=[...placed,...remaining].filter(x=>x.parentElement===parent);
+ day08OrderInPlace(parent,full);
+ const guide=doc.createElement('div');guide.className='ny26-day08-guide';
+ const heading=doc.createElement('strong');heading.textContent='📍 08/11 • roteiro por local';guide.appendChild(heading);
+ const note=doc.createElement('p');
+ note.textContent='Cada parada com horário, GPS e detalhes. Feito, fotos e comprovantes originais permanecem nos cards. Só o museu às 10h tem ingresso com horário; os demais horários são estimativas.';
+ guide.appendChild(note);
+ const docs=day08DocsLink(doc);if(docs)guide.appendChild(docs);
+ if(full.length)full[0].insertAdjacentElement('beforebegin',guide);
+ else section.prepend(guide);
+ annotateExisting(doc,section,day);
+ return {places:stops.length,original:cards.length,extra:placed.length-cards.filter(c=>placed.includes(c)).length};
+}
 function render(doc,section,day,scope){
+ if(day.date==='2026-11-08')return renderDay08Cards(doc,section,day);
+ section.classList.remove('ny26-day08-cards-mode');
  section.querySelector('.ny26-v157-day')?.remove();
  // Recria o card informativo sem tocar nas etapas reais nem duplicar a parada.
  section.querySelectorAll('[data-ny26-day07-refuel]').forEach(el=>el.remove());
