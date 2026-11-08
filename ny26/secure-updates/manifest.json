@@ -5,6 +5,11 @@
       "id": "2026-11-07-old-town-alexandria-v1",
       "keyId": "08ca5cf3c28758942b7a8b05",
       "file": "secure-updates/packets/2026-11-07-old-town-alexandria-v1.json"
+    },
+    {
+      "id": "2026-11-08-washington-street-parking-v1",
+      "keyId": "08ca5cf3c28758942b7a8b05",
+      "file": "secure-updates/packets/2026-11-08-washington-street-parking-v1.json"
     }
   ]
 }
