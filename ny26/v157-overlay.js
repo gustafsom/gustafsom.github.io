@@ -745,6 +745,18 @@ function day08MatchCards(cards,stops){
    if(match>score){best=card;score=match}
   }
   // Location identity is stable for these phases; never match generic hotel/food names.
+  if(score<7&&phase===8){
+   // Duas descrições de um mesmo polo de compras podem ter palavras diferentes.
+   // Exigir os marcadores "Target" + "Christiana" para não fundir lojas distintas.
+   const wanted=matchNorm(stop.title);
+   const candidates=cards.filter(card=>!used.has(card)&&day08Phase({title:title(card)})===8);
+   const matching=candidates.filter(card=>{
+    const n=matchNorm(title(card));
+    return (wanted.includes('target')&&n.includes('target')&&wanted.includes('christiana')&&n.includes('christiana'))||
+      (wanted.includes('dollar tree')&&n.includes('dollar tree'));
+   });
+   if(matching.length===1){best=matching[0];score=6}
+  }
   if(score<7&&[-1,0,1,2,3,4,5,6,7,9].includes(phase)){
    best=cards.find(card=>!used.has(card)&&day08Phase({title:title(card)})===phase)||null;
    score=best?6:0;
@@ -809,7 +821,8 @@ function day08ExistingCard(doc,card,stop,phase){
  inside.querySelector('.ny26-day08-more')?.remove();
  const time=doc.createElement('div');time.className='ny26-day08-time';
  time.textContent='⏱ '+String(stop.time||'Horário flexível');
- inside.insertBefore(time,inside.firstChild);
+ // Horário visível mesmo quando os detalhes originais estão recolhidos.
+ card.insertBefore(time,card.firstChild);
  const existingMap=card.querySelector('a[href*="google.com/maps"],a[href*="maps.app.goo.gl"],a[href*="maps.apple.com"]');
  const actions=doc.createElement('div');actions.className='ny26-day08-actions';
  // Keep the original GPS intact, but provide updated directions when needed.
@@ -821,7 +834,7 @@ function day08ExistingCard(doc,card,stop,phase){
  }
  const docs=day08DocsLink(doc);
  if(docs&&!card.querySelector('a[href="#documentos"]'))actions.appendChild(docs);
- if(actions.children.length){inside.appendChild(actions)}
+ if(actions.children.length){card.appendChild(actions)}
  if(stop.warning||stop.instructions||stop.bathroom){
   const info=doc.createElement('details');info.className='ny26-day08-more';
   const summary=doc.createElement('summary');summary.textContent='Cuidados desta parada';info.appendChild(summary);
