@@ -627,12 +627,21 @@ function injectPrivateUpdateCards(doc,section,day){
   });
   if(anchor)anchor.insertAdjacentElement(stop.privatePlacement==='before'?'beforebegin':'afterend',card);
   else{
-   // Uma atualização anterior pode não estar disponível; ainda assim o estacionamento
-   // deve aparecer ANTES da primeira atração, nunca no fim da programação.
-   const firstStop=section.querySelector('article.step:not([data-ny26-day07-refuel])');
-   if(stop.privatePlacement==='before'&&firstStop)firstStop.insertAdjacentElement('beforebegin',card);
-   else{const first=section.querySelector('.ny26-v157-day');
-    if(first)first.insertAdjacentElement('afterend',card);else section.appendChild(card)}
+   // Sem correspondência exata no HTML antigo, respeitar a transição DC→DE.
+   const legacy=[...section.querySelectorAll('article.step')];
+   const heading=x=>matchNorm(originalTitle(x));
+   const de=legacy.find(x=>/christiana|newark|wawa|quality inn|delaware|target/.test(heading(x)));
+   const dc=[...legacy].reverse().find(x=>/capitol|white house|lincoln memorial|air and space|washington monument|world war|national mall/.test(heading(x)));
+   if(stop.privatePlacement==='before'&&de)de.insertAdjacentElement('beforebegin',card);
+   else if(stop.privatePlacement==='after'&&dc)dc.insertAdjacentElement('afterend',card);
+   else if(day.date==='2026-11-08'&&dc)dc.insertAdjacentElement('afterend',card);
+   else{
+    // Outros dias: preservar a regra antiga, sem apagar qualquer card.
+    const firstStop=legacy[0];
+    if(stop.privatePlacement==='before'&&firstStop)firstStop.insertAdjacentElement('beforebegin',card);
+    else{const first=section.querySelector('.ny26-v157-day');
+     if(first)first.insertAdjacentElement('afterend',card);else section.appendChild(card)}
+   }
   }
   inserted++;
  }
