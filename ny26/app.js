@@ -1276,7 +1276,9 @@ async function checkSecureInbox({quiet=false}={}){
   $('secure-approve').disabled=Boolean(reason);
   const list=patch.changes.map(x=>x.date+' • '+x.stop.title+
    '\nReferência: '+x.anchor+' ('+x.position+')'+
-   (x.stop.address?'\nEndereço: '+x.stop.address:'')+
+   (x.stop.address?'\nGPS Plano A: '+x.stop.address:'')+
+   (x.stop.backupAddress?'\nGPS Plano B: '+x.stop.backupAddress:'')+
+   (x.stop.status?'\nPrioridade: '+x.stop.status:'')+
    (x.stop.time?'\nHorário: '+x.stop.time:'')).join('\n\n');
   securePreview('ATUALIZAÇÃO '+patch.id+'\n'+patch.summary+'\n\n'+list+(reason?'\n\n⚠️ '+reason:''));
   secureStatus(reason?'Atualização detectada, mas bloqueada para proteger o roteiro.':
