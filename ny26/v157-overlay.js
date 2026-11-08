@@ -33,6 +33,7 @@ const css=[
 '.ny26-day08-legacy-note{font:700 13px/1.5 system-ui,sans-serif;color:#835600;background:#fff4db;padding:10px;border-radius:8px;margin:12px 0}',
 '.ny26-day08-cards-mode article.step{display:block;min-width:0;max-width:100%;overflow-wrap:anywhere}',
 '.ny26-day08-cards-mode article.step.ny26-private-hidden-stop{display:none!important}',
+'.ny26-day08-cards-mode .ny26-live{display:none!important}',
 '.ny26-day08-cards-mode article.step.ny26-day08-original .ny26-time-inline{display:none!important}',
 '.ny26-day08-time{display:block;max-width:100%;background:#e7f2fa;border-left:4px solid #26709a;border-radius:6px;padding:8px 10px;margin:6px 0 11px;font:800 15px/1.5 system-ui,sans-serif;color:#18516e;overflow-wrap:anywhere}',
 '.ny26-day08-extra{display:block;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid #b7d4e3;border-left:4px solid #16719b;border-radius:12px;background:#f9fcff;padding:13px;margin:12px 0;overflow-wrap:anywhere}',
@@ -762,9 +763,10 @@ function day08MatchCards(cards,stops){
    });
    if(matching.length===1){best=matching[0];score=6}
   }
-  if(score<7&&[-1,0,1,2,3,4,5,6,7,9].includes(phase)){
-   best=cards.find(card=>!used.has(card)&&day08Phase({title:title(card)})===phase)||null;
-   score=best?6:0;
+  if(score<7&&[-1,0,1,2,2.5,3,4,5,6,7,9].includes(phase)){
+   const candidates=cards.filter(card=>!used.has(card)&&day08Phase({title:title(card)})===phase);
+   // Só associar nomes alternativos se houver UMA única correspondência da fase.
+   if(candidates.length===1){best=candidates[0];score=6}
   }
   if(score<6)best=null;
   if(best)used.add(best);
