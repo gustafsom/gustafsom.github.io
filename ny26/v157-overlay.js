@@ -183,9 +183,9 @@ function consolidatePlaces(places,date){
 // Nenhum ID, etapa original, Feito ou anexo é gravado/modificado.
 function day08Phase(stop){
  const n=matchNorm(stop?.title||'');
- if(/saida do hotel|saida de falls church|check out falls church|cafe e saida do governor house/.test(n))return -1;
+ if(/saida do hotel|saida de falls church|check out|checkout|cafe.*governor house|saida.*governor house/.test(n))return -1;
  if(/estacionamento|parking|buscar vaga|procurar vaga/.test(n))return 0;
- if(/almoco rapido|pausa para almoco|lanche apos museu/.test(n))return 2.5;
+ if(/almoco|lunch|chipotle|lanche apos museu/.test(n))return 2.5;
  if(/air and space|museu do ar|museu aeroespacial/.test(n))return 1;
  if(/capitol|capitolio/.test(n))return 2;
  if(/washington monument|monumento a washington/.test(n))return 3;
@@ -910,7 +910,7 @@ function renderDay08Cards(doc,section,day){
  const guide=doc.createElement('div');guide.className='ny26-day08-guide';
  const heading=doc.createElement('strong');heading.textContent='📍 08/11 • roteiro por local';guide.appendChild(heading);
  const note=doc.createElement('p');
- note.textContent='Cada parada com horário, GPS e detalhes. Feito, fotos e comprovantes originais permanecem nos cards. Só o museu às 10h tem ingresso com horário; os demais horários são estimativas.';
+ note.textContent='Siga os cards numerados na ordem 01 → 12. Horários estimados foram ajustados para essa sequência; somente o museu às 10h tem ingresso com horário. GPS, Feito, fotos e comprovantes originais continuam acessíveis.';
  guide.appendChild(note);
  const docs=day08DocsLink(doc);if(docs)guide.appendChild(docs);
  if(full.length)full[0].insertAdjacentElement('beforebegin',guide);
