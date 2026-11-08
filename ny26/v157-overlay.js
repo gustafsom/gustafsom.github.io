@@ -222,7 +222,9 @@ function day08Chronology(day){
   return {entry,phase,original:i};
  });
  ordered.sort((a,b)=>a.phase-b.phase||a.original-b.original);
- return {...day,[active]:ordered.map(x=>x.entry),operationalChronology:true};
+ return {...day,[active]:ordered.map(x=>x.entry),
+  hiddenStopTitles:[...new Set([...(day.hiddenStopTitles||[]),'wawa'])],
+  operationalChronology:true};
 }
 function annotateExisting(doc,section,day){
  const cards=[...section.querySelectorAll('article.step')],used=new Set();
@@ -287,6 +289,7 @@ function attentionForDay(day){
  if(day.date==='2026-11-11')notes.push({summary:'OMNY: passe o mesmo cartão quatro vezes no mesmo leitor, uma por passageiro. Na primeira utilização, o banco pode exigir pequena espera antes do segundo toque.',url:'https://omny.info/faq/detailed-information-on-omny'});
  if(day.date==='2026-11-06')notes.push({summary:'Proteja os horários das visitas programadas: almoço e banheiro são apoio curto, sem desvio que atrase o próximo compromisso.'});
  if(day.date==='2026-11-08')notes.push({summary:'Washington: não presuma estacionamento diante do National Mall. Defina vaga legal e registre endereço, placa e horário de validade antes de caminhar.'});
+ if(day.date==='2026-11-08')notes.push({summary:'A sequência completa (Museu → Capitólio → Monumento → WWII → Lincoln → Casa Branca) exige caminhada longa. Com crianças, faça apenas as paradas que couberem: não sacrifique a entrada das 10h nem a saída para Delaware. Os horários fora do museu são estimativas, não reservas.'});
  if(day.date==='2026-11-09')notes.push({summary:'Devolução Avis: confira o endereço e o limite contratual, fotografe estado do carro/combustível e obtenha confirmação de encerramento.'});
  // Casos que aparecem apenas como planos condicionais na própria planilha.
  if(day.date==='2026-11-07')notes.push({summary:'Filadélfia: após a área da Liberty Bell e Independence Hall, recupere o carro para Rocky Steps; conferir vaga legal na chegada.',url:'https://www.nps.gov/inde/planyourvisit/hours.htm'});
