@@ -14,10 +14,17 @@ function valid(p){
  if(typeof p.summary!=='string'||!p.summary.trim()||p.summary.length>240)throw Error('Resumo inválido.');
  if(JSON.stringify(p).length>30000)throw Error('Atualização muito grande.');
  for(const change of p.changes){
-  if(change.type!=='upsert_stop')throw Error('Operação não autorizada nesta versão: '+change.type);
   if(!/^2026-11-(?:0[4-9]|1[0-8])$/.test(change.date||''))throw Error('Data fora da viagem.');
-  if(change.position!=='after'&&change.position!=='before')throw Error('Posicionamento inválido.');
-  if(typeof change.anchor!=='string'||!change.anchor.trim()||change.anchor.length>120)throw Error('Local de referência inválido.');
+  if(change.type==='hide_stop'){
+   // A retirada é visual: não apaga a etapa original, Feito ou anexos.
+   // Autorização deliberadamente restrita à retirada de Wawa de 08/11.
+   if(change.date!=='2026-11-08'||plain(change.match)!=='wawa')throw Error('Somente a parada Wawa de 08/11 pode ser ocultada nesta revisão.');
+   continue;
+  }
+  if(change.type!=='upsert_stop')throw Error('Operação não autorizada nesta versão: '+change.type);
+  if(!['after','before','after_washington'].includes(change.position))throw Error('Posicionamento inválido.');
+  if(change.position==='after_washington'&&change.date!=='2026-11-08')throw Error('Saída de Washington só se aplica a 08/11.');
+  if(change.position!=='after_washington'&&(typeof change.anchor!=='string'||!change.anchor.trim()||change.anchor.length>120))throw Error('Local de referência inválido.');
   if(change.fallbackAnchor!==undefined&&(typeof change.fallbackAnchor!=='string'||!change.fallbackAnchor.trim()||change.fallbackAnchor.length>120))throw Error('Referência alternativa inválida.');
   if(!change.stop||typeof change.stop.title!=='string'||!change.stop.title.trim()||change.stop.title.length>140)throw Error('Etapa inválida.');
   for(const [key,value] of Object.entries(change.stop)){
@@ -38,24 +45,38 @@ function apply(base,patches){
   const working=days.map(day=>({...day,stops:day.stops.map(x=>({...x})),places:day.places.map(x=>({...x}))}));
   for(const op of patch.changes){
    const day=working.find(d=>d.date===op.date);
-   if(!day)throw Error('Dia '+op.date+' indisponível; atualização '+patch.id+' não aplicada.');
+   if(!day)throw Error('Dia '+op.date+' indisponível; nenhuma alteração aplicada.');
+   if(op.type==='hide_stop'){
+    const term=plain(op.match);
+    day.hiddenStopTitles=[...new Set([...(day.hiddenStopTitles||[]),term])];
+    for(const name of ['stops','places'])day[name]=day[name].filter(x=>!plain(x.title).includes(term));
+    continue;
+   }
    const field=day.stops.length?'stops':'places',list=day[field];
-   const candidates=[op.anchor,...(op.fallbackAnchor?[op.fallbackAnchor]:[])];
-   let anchorIndex=-1,matchedAnchor='';
-   for(const candidate of candidates){
-    const normalized=plain(candidate);
-    const i=list.findIndex(x=>plain(x.title)===normalized||plain(x.title).includes(normalized));
-    if(i>=0){anchorIndex=i;matchedAnchor=candidate;break}
-   }
-   if(anchorIndex<0)throw Error('Referência "'+op.anchor+'" não encontrada; nenhuma alteração aplicada.');
-   const next={...op.stop,privateUpdateId:patch.id,privateAnchor:matchedAnchor,privatePlacement:op.position};
-   const current=list.findIndex(x=>plain(x.title)===plain(next.title));
-   if(current>=0){
-    list[current]={...list[current],...next};
-    // For idempotence, preserve the original position when already present.
+   let anchorIndex=-1,matchedAnchor='',position=op.position;
+   if(op.position==='after_washington'){
+    // Localizar a transição de Washington para Delaware; não inventar horários.
+    const de=/\b(christiana|delaware|newark|wawa|quality inn|target|dollar tree|lojas de christiana)\b/i;
+    const dc=/\b(capitol|white house|lincoln memorial|air and space|washington monument|world war|national mall|museu do ar)\b/i;
+    const deIdx=list.findIndex(x=>de.test(plain(x.title)));
+    if(deIdx>=0){anchorIndex=deIdx;matchedAnchor=list[deIdx].title;position='before'}
+    else{
+     for(let i=0;i<list.length;i++)if(dc.test(plain(list[i].title)))anchorIndex=i;
+     if(anchorIndex>=0){matchedAnchor=list[anchorIndex].title;position='after'}
+    }
    }else{
-    list.splice(anchorIndex+(op.position==='after'?1:0),0,next);
+    const candidates=[op.anchor,...(op.fallbackAnchor?[op.fallbackAnchor]:[])];
+    for(const candidate of candidates){
+     const normalized=plain(candidate);
+     const i=list.findIndex(x=>plain(x.title)===normalized||plain(x.title).includes(normalized));
+     if(i>=0){anchorIndex=i;matchedAnchor=candidate;break}
+    }
    }
+   if(anchorIndex<0)throw Error('Transição de rota não encontrada em '+op.date+'; atualização não aplicada.');
+   const next={...op.stop,privateUpdateId:patch.id,privateAnchor:matchedAnchor,privatePlacement:position};
+   const current=list.findIndex(x=>plain(x.title)===plain(next.title));
+   if(current>=0)list[current]={...list[current],...next};
+   else list.splice(anchorIndex+(position==='after'?1:0),0,next);
   }
   days=working;applied.push(patch.id);
  }
