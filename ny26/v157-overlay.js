@@ -100,6 +100,7 @@ function line(doc,stop){
  d.appendChild(s);
  para(doc,d,'Situação',stop.status);
  para(doc,d,'Endereço',stop.address);
+ if(stop.backupAddress)para(doc,d,'GPS alternativo',stop.backupAddress);
  para(doc,d,'Por que visitar',stop.why,'ny26-v157-why');
  para(doc,d,'O que observar',stop.look,'ny26-v157-why');
  para(doc,d,'Como executar',stop.instructions);
@@ -159,6 +160,60 @@ function consolidatePlaces(places,date){
   result.sort((a,b)=>(order[placeKey(a.title)]??99)-(order[placeKey(b.title)]??99));
  }
  return result;
+}
+// 08/11: ordem executável, independente da ordem em que atualizações privadas chegaram.
+// Horários abaixo são JANELAS DE PLANEJAMENTO, exceto o ingresso do museu às 10h.
+// Nenhum ID, etapa original, Feito ou anexo é gravado/modificado.
+function day08Phase(stop){
+ const n=matchNorm(stop?.title||'');
+ if(/estacionamento|parking|buscar vaga|procurar vaga/.test(n))return 0;
+ if(/air and space|museu do ar|museu aeroespacial/.test(n))return 1;
+ if(/capitol|capitolio/.test(n))return 2;
+ if(/washington monument|monumento a washington/.test(n))return 3;
+ if(/world war|segunda guerra|ii memorial/.test(n))return 4;
+ if(/lincoln memorial/.test(n))return 5;
+ if(/white house|casa branca/.test(n))return 6;
+ if(/abastec|gas station|royal farms|posto de combustivel/.test(n))return 7;
+ if(/christiana|target|dollar tree|lojas|compras|delaware|newark/.test(n))return 8;
+ if(/quality inn|hotel|hospedagem/.test(n))return 9;
+ return 6.5; // atração sem grupo conhecido fica no fim das visitas em DC
+}
+const day08Windows={
+ 0:'09h00–09h30 • ESTIMATIVA: buscar vaga legal',
+ 1:'10h00 • INGRESSO CONFIRMADO (entrada e raio X)',
+ 2:'11h40–12h00 • estimativa (exterior)',
+ 3:'12h35–12h50 • estimativa (exterior)',
+ 4:'13h00–13h15 • estimativa (exterior)',
+ 5:'13h30–13h55 • estimativa (exterior)',
+ 6:'14h20–14h40 • estimativa (exterior)',
+ 7:'Após 14h40 • saída de Washington (flexível)',
+ 8:'Após abastecer • opcional, se houver tempo',
+ 9:'Depois das compras • sem horário fixo'
+};
+function day08Chronology(day){
+ if(day?.date!=='2026-11-08')return day;
+ const active=day.stops?.length?'stops':'places';
+ const source=day[active]||[];
+ const filtered=source.filter(stop=>!/\bwawa\b/i.test(matchNorm(stop?.title||'')));
+ const ordered=filtered.map((stop,i)=>{
+  const phase=day08Phase(stop),entry={...stop};
+  // Não substituir horários informados pelo viajante. O restante é janela sugerida.
+  if(!entry.time)entry.time=day08Windows[phase]||'Após visitas em Washington • estimativa';
+  if(phase===1){
+   entry.time='10h00 • INGRESSO CONFIRMADO';
+   const security='ENTRADA: 650 Jefferson Dr SW, lado do National Mall. Chegar à fila por volta de 09h40–09h45. Detector de metais; bolsas podem passar por raio X ou revista manual. Sem comida nem bebidas externas, exceto água engarrafada.';
+   if(!String(entry.warning||'').includes('Detector de metais'))entry.warning=[security,entry.warning].filter(Boolean).join(' ');
+   entry.instructions=[String(entry.instructions||''),'Ter os 4 passes com horário disponíveis. Entrada permitida a partir das 10h; fila e inspeção não são dispensadas.'].filter(Boolean).join(' ');
+  }
+  if(phase===0){
+   entry.warning=[entry.warning,'Vaga gratuita NÃO garantida. Ler todas as placas, respeitar zonas residenciais e horários, fotografar a placa e salvar o carro no Maps. Priorizar a entrada do museu às 10h.'].filter(Boolean).join(' ');
+  }
+  if([3,4,5,6].includes(phase))entry.status=[entry.status,'EXTERIOR / PODE SER CORTADO para evitar caminhada excessiva e preservar a saída de Washington'].filter(Boolean).join(' • ');
+  if(phase===7)entry.status=[entry.status,'SOMENTE APÓS AS ATRAÇÕES EM WASHINGTON; conferir se I-95 North permanece na rota para Delaware'].filter(Boolean).join(' • ');
+  return {entry,phase,original:i};
+ });
+ ordered.sort((a,b)=>a.phase-b.phase||a.original-b.original);
+ return {...day,[active]:ordered.map(x=>x.entry),operationalChronology:true};
 }
 function annotateExisting(doc,section,day){
  const cards=[...section.querySelectorAll('article.step')],used=new Set();
@@ -662,13 +717,14 @@ function render(doc,section,day,scope){
  para(doc,wrapper,'Objetivo',day.title);
  const schedule=doc.createElement('details');schedule.className='ny26-v157-program';
  // A informação essencial fica visível; todas as descrições longas sob demanda.
- schedule.open=false; // Evita duplicar as paradas dos cards operacionais ao abrir o dia.
+ schedule.open=day.date==='2026-11-08'; // Dia 08: mostrar horas em ordem, com cards legados recolhidos.
  const sum=doc.createElement('summary');
  const stops=(day.stops?.length?day.stops:day.places)||[];
- // Dias de deslocamento (sem horarios detalhados na v1.57) mantem os cards operacionais visiveis.
- if(!day.stops?.length)legacy?.setOpen(true);
+ // No dia 08 mostrar UMA cronologia principal, mantendo Feito/GPS/anexos antigos no botão de acesso.
+ if(day.date==='2026-11-08')legacy?.setOpen(false);
+ else if(!day.stops?.length)legacy?.setOpen(true);
  const branch=addBranchChoice(doc,day,stops,scope);
- sum.textContent='📋 Ver programação completa ('+stops.length+' etapas)';
+ sum.textContent=day.date==='2026-11-08'?'🕘 08/11 • sequência cronológica ('+stops.length+' etapas; somente museu tem hora fixa)':'📋 Ver programação completa ('+stops.length+' etapas)';
  schedule.appendChild(sum);
  for(const [index,stop] of stops.entries()){
   const item=line(doc,stop);
@@ -679,6 +735,7 @@ function render(doc,section,day,scope){
    if(index===branch.aIndex||index===branch.bIndex){const label=doc.createElement('span');label.className='ny26-v157-branch-note';label.textContent=routeBranch==='metro'?'PLANO A — VOLTA DE METRÔ':'PLANO B — VOLTA A PÉ';item.querySelector('summary')?.insertAdjacentElement('afterend',label)}
   }
   const stage=stageFor(stop);
+  if(day.date==='2026-11-08'&&day08Phase(stop)===1)item.open=true;
   if(stage){
    const tag=doc.createElement('span');tag.className='ny26-v157-stage '+stage.kind;tag.textContent=stage.text;
    item.querySelector('summary')?.insertAdjacentElement('afterend',tag);
@@ -693,10 +750,14 @@ function render(doc,section,day,scope){
    }
   }
   if(stop.address&&String(stop.address).length>8){
-   const url='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(stop.address);
+   const url='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(stop.address)+'&travelmode=driving';
    const a=doc.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';
-   a.className='ny26-v157-jump';a.textContent='📍 Abrir endereço no mapa (online)';
+   a.className='ny26-v157-jump';a.textContent='🚗 GPS • Traçar rota (Google Maps)';
    item.appendChild(a);
+   if(day.date==='2026-11-08'&&stop.backupAddress){
+    const alt=doc.createElement('a');alt.href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(stop.backupAddress)+'&travelmode=driving';
+    alt.target='_blank';alt.rel='noopener noreferrer';alt.className='ny26-v157-jump';alt.textContent='🅿️ Plano B • procurar vaga na rua';item.appendChild(alt);
+   }
   }
   addStopChoice(doc,stop,day,scope,item);
   schedule.appendChild(item);
@@ -706,7 +767,10 @@ function render(doc,section,day,scope){
  if(branch){wrapper.appendChild(branch.wrap);branch.activate()}
  wrapper.appendChild(schedule);
  injectDay07Stop(doc,section,day);
- injectPrivateUpdateCards(doc,section,day);
+ if(day.date==='2026-11-08'){
+  // Os itens 08/11 já estão no resumo cronológico, inclusive com GPS, evitando duplicação.
+  section.querySelectorAll('[data-ny26-secure-stop],.ny26-private-update-note,[data-ny26-private-link]').forEach(x=>x.remove());
+ }else injectPrivateUpdateCards(doc,section,day);
  annotateExisting(doc,section,day);
  const anchor=section.querySelector('.ny-day-brief,.ck-daylink,.ny26-live,.ny26-offline-advice,.dayheader,h1,h2,h3');
  if(anchor)anchor.insertAdjacentElement('afterend',wrapper);else section.prepend(wrapper);
@@ -731,7 +795,7 @@ function decorate(doc,pack,scope){
  if(!doc.getElementById('ny26-v157-style')){
   const style=doc.createElement('style');style.id='ny26-v157-style';style.textContent=css;doc.head.appendChild(style);
  }
- const consolidatedDays=pack.days.map(d=>({...d,places:consolidatePlaces(d.places,d.date)}));
+ const consolidatedDays=pack.days.map(d=>day08Chronology({...d,places:consolidatePlaces(d.places,d.date)}));
  const index=new Map(consolidatedDays.map(x=>[x.date,x]));
  let days=0,steps=0;
  for(const section of doc.querySelectorAll('section.daypage')){
