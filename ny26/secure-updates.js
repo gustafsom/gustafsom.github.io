@@ -7,7 +7,7 @@ const FORMAT='ny26-private-patch-v1', ENVELOPE='ny26-encrypted-update-v1';
 const DB='ny26-secure-update-keys-v1',STORE='user-keys';
 const enc=new TextEncoder(),dec=new TextDecoder();
 const idRx=/^[a-z0-9][a-z0-9-]{3,62}$/;
-const fields=new Set(['title','time','address','status','why','look','instructions','food','bathroom','warning','source']);
+const fields=new Set(['title','time','address','backupAddress','status','why','look','instructions','food','bathroom','warning','source']);
 function plain(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
 function valid(p){
  if(!p||p.schema!==FORMAT||!idRx.test(p.id||'')||!Array.isArray(p.changes)||!p.changes.length||p.changes.length>12)throw Error('Atualização incompatível.');
@@ -21,7 +21,8 @@ function valid(p){
   if(change.fallbackAnchor!==undefined&&(typeof change.fallbackAnchor!=='string'||!change.fallbackAnchor.trim()||change.fallbackAnchor.length>120))throw Error('Referência alternativa inválida.');
   if(!change.stop||typeof change.stop.title!=='string'||!change.stop.title.trim()||change.stop.title.length>140)throw Error('Etapa inválida.');
   for(const [key,value] of Object.entries(change.stop)){
-   if(!fields.has(key)||typeof value!=='string'||value.length>2000)throw Error('Campo não autorizado: '+key);
+   if(!fields.has(key)||typeof value!=='string'||value.length>2000||
+    (key==='backupAddress'&&value.length>250))throw Error('Campo não autorizado: '+key);
   }
  }
  return p;
