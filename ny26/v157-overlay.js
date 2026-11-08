@@ -586,13 +586,20 @@ function injectPrivateUpdateCards(doc,section,day){
    const actions=doc.createElement('div');actions.className='ny26-day07-actions';
    const link=doc.createElement('a');
    link.href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(stop.address)+'&travelmode=driving';
-   link.target='_blank';link.rel='noopener noreferrer';link.textContent='🚗 Traçar rota no Google Maps';
-   actions.appendChild(link);card.appendChild(actions);
+   link.target='_blank';link.rel='noopener noreferrer';link.textContent=stop.backupAddress?'🚗 Plano A • procurar vaga grátis':'🚗 Traçar rota no Google Maps';
+   actions.appendChild(link);
+   if(stop.backupAddress){
+    const alt=doc.createElement('a');alt.href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(stop.backupAddress)+'&travelmode=driving';
+    alt.target='_blank';alt.rel='noopener noreferrer';alt.textContent='🅿️ Plano B • buscar vaga perto do museu';
+    alt.title='Ponto alternativo de busca, não uma vaga garantida';
+    actions.appendChild(alt);
+   }
+   card.appendChild(actions);
   }
   const more=doc.createElement('details');
   const summary=doc.createElement('summary');summary.textContent='Informações desta parada';more.appendChild(summary);
   for(const [label,value] of [['Objetivo',stop.why],['Como executar',stop.instructions],
-    ['Alimentação',stop.food],['Banheiro',stop.bathroom],['Atenção',stop.warning]]){
+    ['Ponto alternativo',stop.backupAddress],['Alimentação',stop.food],['Banheiro',stop.bathroom],['Atenção',stop.warning]]){
    if(!value)continue;
    const p=doc.createElement('p');const b=doc.createElement('strong');b.textContent=label+': ';
    p.appendChild(b);p.appendChild(doc.createTextNode(String(value)));more.appendChild(p);
@@ -607,8 +614,12 @@ function injectPrivateUpdateCards(doc,section,day){
   const anchor=anchorCandidates.find(x=>cardMatch(originalTitle(x),stop.privateAnchor)>=7);
   if(anchor)anchor.insertAdjacentElement(stop.privatePlacement==='before'?'beforebegin':'afterend',card);
   else{
-   const first=section.querySelector('.ny26-v157-day');
-   if(first)first.insertAdjacentElement('afterend',card);else section.appendChild(card);
+   // Uma atualização anterior pode não estar disponível; ainda assim o estacionamento
+   // deve aparecer ANTES da primeira atração, nunca no fim da programação.
+   const firstStop=section.querySelector('article.step:not([data-ny26-day07-refuel])');
+   if(stop.privatePlacement==='before'&&firstStop)firstStop.insertAdjacentElement('beforebegin',card);
+   else{const first=section.querySelector('.ny26-v157-day');
+    if(first)first.insertAdjacentElement('afterend',card);else section.appendChild(card)}
   }
   inserted++;
  }
