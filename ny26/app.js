@@ -1256,7 +1256,8 @@ async function checkSecureInbox({quiet=false}={}){
    secureStatus('✅ Sem atualizações pendentes. '+approved.size+' alteração(ões) aprovada(s).');
    return;
   }
-  const match=pending.find(x=>x.keyId===key.keyId);
+  // Prioriza a atualização mais recente, mesmo que exista uma anterior pendente.
+  const match=pending.filter(x=>x.keyId===key.keyId).at(-1);
   if(!match){
    markSecurePending(false);
    ny26PendingEncrypted=null;$('secure-approve').disabled=true;securePreview('');
@@ -1279,7 +1280,7 @@ async function checkSecureInbox({quiet=false}={}){
    (x.stop.time?'\nHorário: '+x.stop.time:'')).join('\n\n');
   securePreview('ATUALIZAÇÃO '+patch.id+'\n'+patch.summary+'\n\n'+list+(reason?'\n\n⚠️ '+reason:''));
   secureStatus(reason?'Atualização detectada, mas bloqueada para proteger o roteiro.':
-   '🔔 Atualização pendente. Confira os detalhes e escolha Aprovar.');
+   '🔔 '+pending.length+' atualização(ões) pendente(s). Exibindo a mais recente. Confira os detalhes e escolha Aprovar.');
  }catch(e){
   ny26PendingEncrypted=null;$('secure-approve').disabled=true;
   secureStatus('⚠️ '+String(e.message||e));
