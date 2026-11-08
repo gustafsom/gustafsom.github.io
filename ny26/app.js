@@ -1274,12 +1274,16 @@ async function checkSecureInbox({quiet=false}={}){
   ny26PendingEncrypted=reason?null:patch;
   markSecurePending(true);
   $('secure-approve').disabled=Boolean(reason);
-  const list=patch.changes.map(x=>x.date+' • '+x.stop.title+
-   '\nReferência: '+x.anchor+' ('+x.position+')'+
-   (x.stop.address?'\nGPS Plano A: '+x.stop.address:'')+
-   (x.stop.backupAddress?'\nGPS Plano B: '+x.stop.backupAddress:'')+
-   (x.stop.status?'\nPrioridade: '+x.stop.status:'')+
-   (x.stop.time?'\nHorário: '+x.stop.time:'')).join('\n\n');
+  const list=patch.changes.map(x=>{
+   if(x.type==='hide_stop')return x.date+' • Retirar a parada '+x.match+' da programação visível (Feito e anexos mantidos)';
+   const position=x.position==='after_washington'?'após as visitas em Washington':x.anchor+' ('+x.position+')';
+   return x.date+' • '+x.stop.title+
+    '\nPosição: '+position+
+    (x.stop.address?'\nGPS: '+x.stop.address:'')+
+    (x.stop.backupAddress?'\nGPS alternativo: '+x.stop.backupAddress:'')+
+    (x.stop.status?'\nPrioridade: '+x.stop.status:'')+
+    (x.stop.time?'\nHorário: '+x.stop.time:'');
+  }).join('\n\n');
   securePreview('ATUALIZAÇÃO '+patch.id+'\n'+patch.summary+'\n\n'+list+(reason?'\n\n⚠️ '+reason:''));
   secureStatus(reason?'Atualização detectada, mas bloqueada para proteger o roteiro.':
    '🔔 '+pending.length+' atualização(ões) pendente(s). Exibindo a mais recente. Confira os detalhes e escolha Aprovar.');
