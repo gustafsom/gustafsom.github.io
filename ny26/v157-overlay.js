@@ -182,7 +182,7 @@ function consolidatePlaces(places,date){
 // Nenhum ID, etapa original, Feito ou anexo é gravado/modificado.
 function day08Phase(stop){
  const n=matchNorm(stop?.title||'');
- if(/saida do hotel|saida de falls church|check out falls church/.test(n))return -1;
+ if(/saida do hotel|saida de falls church|check out falls church|cafe e saida do governor house/.test(n))return -1;
  if(/estacionamento|parking|buscar vaga|procurar vaga/.test(n))return 0;
  if(/almoco rapido|pausa para almoco|lanche apos museu/.test(n))return 2.5;
  if(/air and space|museu do ar|museu aeroespacial/.test(n))return 1;
@@ -197,7 +197,7 @@ function day08Phase(stop){
  return 6.5; // atração sem grupo conhecido fica no fim das visitas em DC
 }
 const day08Windows={
- '-1':'08h00–08h20 • ESTIMATIVA: saída de Falls Church',
+ '-1':'07h30 café • 07h50–08h10 check-out • saída ~08h10 (estimado)',
  0:'09h00–09h30 • ESTIMATIVA: buscar vaga legal',
  1:'10h00 • INGRESSO CONFIRMADO (entrada e raio X)',
  2:'11h40–12h00 • estimativa (exterior)',
@@ -215,7 +215,7 @@ function day08Chronology(day){
  const active=day.stops?.length?'stops':'places';
  const source=day[active]||[];
  const filtered=source.filter(stop=>!/\bwawa\b/i.test(matchNorm(stop?.title||'')));
- if(!filtered.some(x=>day08Phase(x)===-1))filtered.push({title:'Saída do hotel em Falls Church',time:day08Windows[-1],status:'Café da manhã começa às 07h30; conferir check-out e saída com antecedência',why:'Preservar o ingresso do museu às 10h. Não comprometer o horário procurando vagas distantes.'});
+ if(!filtered.some(x=>day08Phase(x)===-1))filtered.push({title:'Café e saída do Governor House em Falls Church',time:day08Windows[-1],status:'Café a partir das 07h30; 07h50–08h10 malas e check-out; saída estimada após 08h10',why:'Preservar o ingresso do museu às 10h. Não comprometer o horário procurando vagas distantes.'});
  if(!filtered.some(x=>day08Phase(x)===0))filtered.push({title:'Buscar estacionamento legal perto do National Mall',time:day08Windows[0],status:'PRIORIDADE: procurar vaga na rua, gratuita apenas se sinalização permitir',warning:'Não existe vaga gratuita garantida. Verificar regras da rua e deixar margem para chegar ao museu às 09h40. Os locais exatos do GPS ficam na atualização privada de estacionamento.'});
  if(!filtered.some(x=>day08Phase(x)===2.5))filtered.push({title:'Almoço rápido / lanche após o museu',time:day08Windows[2.5],status:'FLEXÍVEL — reduzir ou pular se estiver atrasado',food:'Lanches trazidos no carro ou opção rápida sem fila. Não levar alimentos externos para dentro do Air and Space.'});
  if(!filtered.some(x=>day08Phase(x)===9))filtered.push({title:'Seguir ao hotel em Delaware',time:day08Windows[9],status:'Conferir endereço do comprovante de hospedagem antes de sair de Christiana',warning:'Não usar uma localização de hotel inferida; abrir o endereço salvo na reserva.'});
@@ -848,15 +848,25 @@ function day08ExistingCard(doc,card,stop,phase){
  }
 }
 function day08OrderInPlace(parent,ordered){
- // Move existing DOM nodes; NEVER clone or replace a step and its attachments.
- const candidates=()=>[...parent.children].filter(node=>
-  node.matches?.('article.step,article.ny26-day08-extra'));
- const allowed=new Set(ordered);
- const subset=ordered.filter(x=>x.parentElement===parent&&allowed.has(x));
- for(let i=0;i<subset.length;i++){
-  const live=candidates()[i];
-  if(live&&live!==subset[i])parent.insertBefore(subset[i],live);
+ // Ordem EXATA com a identidade dos cards preservada, mesmo se estiverem
+ // originalmente distribuídos entre blocos diferentes da mesma página.
+ const isCard=node=>node?.matches?.('article.step,article.ny26-day08-extra');
+ const initial=[...parent.children].find(isCard)||null;
+ const marker=parent.ownerDocument.createComment('ny26-day08-order-anchor');
+ parent.insertBefore(marker,initial);
+ const seen=new Set();
+ for(const card of ordered){
+  if(!card||seen.has(card))continue;
+  seen.add(card);
+  // insertBefore MOVE o elemento original: input Feito, fotos, comprovantes
+  // e listeners continuam sendo os mesmos objetos DOM.
+  parent.insertBefore(card,marker);
  }
+ marker.remove();
+ const visible=[...parent.children].filter(isCard)
+  .filter(x=>!x.classList?.contains('ny26-private-hidden-stop'));
+ return {expected:seen.size,actual:visible.length,
+  aligned:[...seen].every((card,i)=>visible[i]===card)};
 }
 function renderDay08Cards(doc,section,day){
  section.__ny26LegacyCleanup?.();section.__ny26RhythmCleanup?.();
@@ -884,8 +894,9 @@ function renderDay08Cards(doc,section,day){
  }
  // Keep any original cards that were not confidently matched, with their controls.
  const remaining=cards.filter(card=>!placed.includes(card));
- const full=[...placed,...remaining].filter(x=>x.parentElement===parent);
- day08OrderInPlace(parent,full);
+ const full=[...placed,...remaining];
+ const orderCheck=day08OrderInPlace(parent,full);
+ if(!orderCheck.aligned)console.warn('NY26: verificação de ordem 08/11 falhou.',orderCheck);
  const guide=doc.createElement('div');guide.className='ny26-day08-guide';
  const heading=doc.createElement('strong');heading.textContent='📍 08/11 • roteiro por local';guide.appendChild(heading);
  const note=doc.createElement('p');
