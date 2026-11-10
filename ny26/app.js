@@ -823,6 +823,7 @@ function openFrame(html){
   try{window.NY26RouteEnhancements?.install(doc,TRIP+':'+user.uid)}catch(e){console.warn('Ajustes de roteiro:',e)}
   try{window.NY26FoodGuide?.decorate(doc)}catch(e){console.warn('Informações de alimentação:',e)}
   try{if(ny26V157Data)window.NY26V157Overlay?.decorate(doc,ny26V157Data,TRIP+':'+user.uid)}catch(e){console.warn('Guia v1.57:',e)}
+  try{window.NY26Day10UI?.decorate(doc,ny26V157Data)}catch(e){console.warn('Roteiro cronológico 10/11:',e)}
   try{window.NY26MobileUI?.install(doc)}catch(e){console.warn('Legibilidade mobile:',e)}
   if(window.ny26Snapshot)applySnapshot(window.ny26Snapshot);
  };
@@ -915,7 +916,11 @@ function setV157(data){
  ny26V157Data=view;
  // Save ONLY original source, never a twice-merged view.
  try{if(v157CacheKey())localStorage.setItem(v157CacheKey(),JSON.stringify(data))}catch(e){console.warn('Cache privado v1.57 indisponível:',e)}
- if(frameReady){try{window.NY26V157Overlay?.decorate($('viewer').contentDocument,view,TRIP+':'+user.uid)}catch(e){console.warn('Exibição v1.57:',e)}}
+ if(frameReady){
+  const doc=$('viewer').contentDocument;
+  try{window.NY26V157Overlay?.decorate(doc,view,TRIP+':'+user.uid)}catch(e){console.warn('Exibição v1.57:',e)}
+  try{window.NY26Day10UI?.decorate(doc,view)}catch(e){console.warn('Roteiro 10/11:',e)}
+ }
 }
 function loadCachedV157(){
  if(ny26V157Data)return;
