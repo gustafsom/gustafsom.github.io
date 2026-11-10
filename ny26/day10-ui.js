@@ -59,6 +59,29 @@ function sortedEntries(items){
   else if(right<a.length)a[i].sortMinute=a[right].sortMinute-3*(right-i);
   else a[i].sortMinute=540+10*i;
  }
+ // Compras de retorno: manter a sequência logística aprovada, não horários
+ // desatualizados do HTML antigo (que ainda colocam Lidl antes das novas lojas).
+ const phase=name=>{
+  const n=norm(name);
+  if(/burlington|marshalls|tj maxx|t j maxx|t j maxx/.test(n))return 1;
+  if(/five below/.test(n))return 2;
+  if(/lidl/.test(n))return 3;
+  if(/the chelsean.*retorno|retorno.*the chelsean/.test(n))return 4;
+  return 0;
+ };
+ const cluster=a.filter(x=>phase(x.title)>0);
+ if(cluster.some(x=>phase(x.title)===1||phase(x.title)===2)){
+  const anchor=a.find(x=>/madison square garden|\bmsg\b/i.test(norm(x.title)))||
+   a.find(x=>/moynihan|train hall/i.test(norm(x.title)))||
+   a.find(x=>/hudson yards/i.test(norm(x.title)));
+  const anchorTime=anchor?.sortMinute??1035;
+  for(const entry of cluster){
+   const p=phase(entry.title);
+   entry.sortMinute=anchorTime+p*.15;
+   if(p===3)entry.displayTime='Após as lojas da Sixth Avenue • flexível';
+   if(p===4)entry.displayTime='Depois das compras • flexível';
+  }
+ }
  return a.sort((x,y)=>x.sortMinute-y.sortMinute||x.origin-y.origin);
 }
 function description(item){
@@ -93,7 +116,8 @@ function gps(doc,item){
 function decorateCard(doc,item,index){
  const card=item.card;
  const heading=doc.createElement('div');heading.className='ny26-day10-clock';heading.dataset.ny26Day10Ui='1';
- heading.textContent=String(index+1).padStart(2,'0')+' • '+(trim(item.originalTime||item.reference?.time)?'🕒 '+trim(item.originalTime||item.reference?.time):'🕒 Sem horário fixo');
+ const display=trim(item.displayTime||item.reference?.privateUpdateId&&item.reference?.time||item.originalTime||item.reference?.time);
+ heading.textContent=String(index+1).padStart(2,'0')+' • '+(display?'🕒 '+display:'🕒 Sem horário fixo');
  card.insertBefore(heading,card.firstChild);
  const p=doc.createElement('p');p.className='ny26-day10-what';p.dataset.ny26Day10Ui='1';
  p.textContent='O que fazer: '+description(item);
