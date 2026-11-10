@@ -14,6 +14,10 @@ const entries=[
  {key:'shops-hudson',test:/the shops|shops.*hudson|lojas.*hudson/,address:'20 Hudson Yards, New York, NY 10001, USA',rank:120,minutes:940,do:'Entrar no centro comercial para conhecer as lojas e usar banheiro; visita curta, sem obrigação de comprar.'},
  {key:'edge-exterior',test:/\bedge\b|observatorio edge|mirante edge/,address:'30 Hudson Yards, New York, NY 10001, USA',rank:130,minutes:960,do:'Ver o edifício do Edge a partir do solo e tirar fotos externas. Não há ingresso reservado para subir ao observatório.'},
  {key:'moynihan',test:/moynihan|train hall|penn station(?!.*garden)/,address:'351 W 31st St, New York, NY 10001, USA',rank:150,minutes:1020,do:'Passar pelo saguão iluminado do Moynihan Train Hall, tirar fotos da arquitetura e seguir sem desvio longo.'},
+
+ {key:'sixth-avenue-discounts',test:/burlington|marshalls|t\s*\.?\s*j\s*\.?\s*maxx|tj maxx|620.*6th|620.*sixth/,address:'620 6th Ave, New York, NY 10011, USA',rank:170,minutes:1060,do:'Comparar rapidamente preços e promoções nas três lojas do mesmo prédio: Burlington (incluindo malas), Marshalls (roupas e calçados) e T.J. Maxx (marcas com desconto). Definir um limite curto de tempo e sair se houver fila longa.'},
+ {key:'five-below-chelsea',test:/five below.*chelsea|five below|607.*6th/,address:'607 6th Ave, New York, NY 10011, USA',rank:180,minutes:1090,do:'Procurar acessórios baratos, lembranças, brinquedos e pequenos eletrônicos. Conferir o preço porque alguns itens custam mais de US$ 5.'},
+ {key:'lidl-chelsea',test:/lidl/,address:'335 8th Ave, New York, NY 10001, USA',rank:190,minutes:1115,do:'Comprar apenas água e lanches necessários para o hotel e os dias seguintes, evitando carregar compras desnecessárias durante o passeio.'},
  {key:'madison-square-garden',test:/madison square garden|\bmsg\b/,address:'4 Pennsylvania Plaza, New York, NY 10001, USA',rank:160,minutes:1035,do:'Fotografar a fachada externa e a região da Penn Station. Não é necessário entrar nem comprar tour.'},
  {key:'pier-57-lunch',test:/almoco.*pier|mercado 57.*almoco/,address:'25 11th Ave, New York, NY 10011, USA',rank:80,minutes:790,do:'Procurar algo simples e barato no Market 57 ou optar por um lanche já comprado. Evitar filas e verificar o preço antes de pedir.'}
 ];
@@ -25,6 +29,8 @@ function lookup(title){
  const special=[
   entries.find(x=>x.key==='edge-exterior'),entries.find(x=>x.key==='vessel'),
   entries.find(x=>x.key==='shops-hudson'),entries.find(x=>x.key==='madison-square-garden'),
+  entries.find(x=>x.key==='sixth-avenue-discounts'),entries.find(x=>x.key==='five-below-chelsea'),
+  entries.find(x=>x.key==='lidl-chelsea'),
   entries.find(x=>x.key==='pier-57-lunch')
  ];
  return [...special,...entries.filter(x=>!special.includes(x))].find(x=>x&&x.test.test(name))||null;
