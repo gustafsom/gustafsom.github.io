@@ -91,7 +91,8 @@ function decorateCard(doc,item,index){
  const p=doc.createElement('p');p.className='ny26-day10-what';p.dataset.ny26Day10Ui='1';
  p.textContent='O que fazer: '+description(item);
  const body=card.querySelector('.stepcontent')||card;
- body.insertBefore(p,body.firstChild);
+ // A descrição principal deve aparecer sem abrir os detalhes do local.
+ if(body!==card)card.insertBefore(p,body);else card.appendChild(p);
  const actions=doc.createElement('div');actions.className='ny26-day10-actions';actions.dataset.ny26Day10Ui='1';
  const go=gps(doc,item);if(go)actions.appendChild(go);
  if(doc.getElementById('documentos')){
