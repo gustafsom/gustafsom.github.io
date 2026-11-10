@@ -153,6 +153,93 @@ function moveCards(doc,section,ordered){
  const now=[...parent.children].filter(c=>c.matches?.('article.step,.ny26-day10-newcard'));
  return ordered.every((c,i)=>now[i]===c);
 }
+// Maps URLs can carry only 3 intermediary stops in mobile browsers. Split the
+// LIVE ordered route into overlapping segments of <=5 points (origin + 3 + end).
+// We never upload or publish the authenticated itinerary to public GitHub files.
+function routeLocation(item){
+ const catalog=window.NY26NYCPlaces?.lookup(item.title);
+ const privateAddress=trim(item.reference?.address);
+ // Prefer a clearly geocodable full street address, then our checked public directory.
+ if(privateAddress&&privateAddress.length<=160&&!/[;|]/.test(privateAddress))
+  return {where:privateAddress,verified:true};
+ if(catalog?.address)return {where:catalog.address,verified:true};
+ const previous=item.card?.querySelector('a[href*="google.com/maps/"]');
+ const href=previous?.getAttribute('href')||'';
+ try{
+  const u=new URL(href,docBase());
+  const raw=u.searchParams.get('destination')||u.searchParams.get('query');
+  if(raw&&raw.length<160)return {where:raw,verified:true};
+ }catch(e){}
+ // Never invent a street number for a user-added place. Pass its named place
+ // as a search destination, and label the segment for verification.
+ return {where:item.title+', New York, NY',verified:false};
+}
+function docBase(){return 'https://www.google.com/maps/'}
+function buildMapsUrl(locations){
+ if(!Array.isArray(locations)||locations.length<2||locations.length>5)return null;
+ const address=locations.map(x=>x.where);
+ const qp=['api=1','origin='+encodeURIComponent(address[0]),
+  'destination='+encodeURIComponent(address[address.length-1]),
+  'travelmode=walking'];
+ if(address.length>2)qp.push('waypoints='+address.slice(1,-1).map(encodeURIComponent).join('%7C'));
+ const url='https://www.google.com/maps/dir/?'+qp.join('&');
+ return url.length<=2048?url:null;
+}
+function routeSegments(items){
+ const locations=items.map((item,index)=>({
+  title:item.title,where:routeLocation(item).where,
+  verified:routeLocation(item).verified,number:index+1
+ }));
+ const groups=[];
+ for(let i=0;i<locations.length-1;i+=4){
+  const points=locations.slice(i,i+5);
+  const url=buildMapsUrl(points);
+  groups.push({from:i+1,to:i+points.length,points,url,unverified:points.filter(x=>!x.verified).map(x=>x.title)});
+ }
+ return {locations,groups};
+}
+function routeMapPanel(doc,items){
+ if(!items.length)return null;
+ const {locations,groups}=routeSegments(items);
+ const root=doc.createElement('section');root.className='ny26-day10-map';
+ root.dataset.ny26Day10Ui='1';
+ const heading=doc.createElement('h3');heading.textContent='🗺️ Todas as paradas no Google Maps';root.appendChild(heading);
+ const intro=doc.createElement('p');
+ intro.textContent='Siga os trechos em ordem. Cada novo trecho começa onde o anterior terminou. Os horários e locais seguem o roteiro deste aparelho, inclusive as compras aprovadas.';
+ root.appendChild(intro);
+ if(locations.length===1){
+  const a=doc.createElement('a');a.className='ny26-day10-link';
+  a.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(locations[0].where);
+  a.target='_blank';a.rel='noopener noreferrer';a.textContent='📍 Abrir parada única no Maps';root.appendChild(a);
+ }
+ const list=doc.createElement('div');list.className='ny26-day10-map-links';
+ for(const [i,part] of groups.entries()){
+  const block=doc.createElement('div');block.className='ny26-day10-map-part';
+  const text=doc.createElement('p');text.className='ny26-day10-map-detail';
+  text.textContent='Trecho '+(i+1)+' — paradas '+String(part.from).padStart(2,'0')+' a '+String(part.to).padStart(2,'0')+
+   '\n'+part.points.map(x=>String(x.number).padStart(2,'0')+' '+x.title).join('  →  ');
+  block.appendChild(text);
+  if(part.url){
+   const a=doc.createElement('a');a.href=part.url;a.className='ny26-day10-link';
+   a.target='_blank';a.rel='noopener noreferrer';a.textContent='🚶 Abrir trecho '+(i+1)+' no Google Maps';
+   block.appendChild(a);
+  }else{
+   const note=doc.createElement('p');note.textContent='Trecho muito longo para um único link. Use o GPS individual de cada card.';
+   block.appendChild(note);
+  }
+  if(part.unverified.length){
+   const alert=doc.createElement('p');alert.className='ny26-day10-map-caution';
+   alert.textContent='⚠️ Confirme no mapa: '+part.unverified.join(', ')+' (parada sem endereço preciso salvo).';
+   block.appendChild(alert);
+  }
+  list.appendChild(block);
+ }
+ root.appendChild(list);
+ const foot=doc.createElement('p');foot.className='ny26-day10-map-footnote';
+ foot.textContent='Trajeto a pé. O Maps pode indicar a rua ao lado em trechos da High Line. Os links não salvam uma lista permanente no Google Maps nem substituem o GPS individual.';
+ root.appendChild(foot);
+ return root;
+}
 function installStyle(doc){
  if(doc.getElementById('ny26-day10-style'))return;
  const css=[
@@ -172,6 +259,15 @@ function installStyle(doc){
  '.ny26-day10-more p{font:500 14px/1.5 system-ui,sans-serif;margin:6px 0}',
  '.ny26-day10-newcard{border:1px solid #b5d4e4;border-left:4px solid #1976a1;border-radius:11px;padding:12px;margin:10px 0;background:#fbfdff}',
  '.ny26-day10-newcard h3{font:800 17px/1.45 system-ui,sans-serif;margin:5px 0}',
+ '.ny26-day10-map{border:1px solid #9cc9dc;border-radius:12px;padding:14px;margin:14px 0;background:#f6fbff;color:#1d4a63}',
+ '.ny26-day10-map h3{font:800 18px/1.4 system-ui,sans-serif;margin:0 0 7px}',
+ '.ny26-day10-map p{font:500 14px/1.5 system-ui,sans-serif;margin:7px 0}',
+ '.ny26-day10-map-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:10px;margin-top:10px}',
+ '.ny26-day10-map-part{padding:11px;border:1px solid #c6dfe9;background:#fff;border-radius:10px}',
+ '.ny26-day10-map-detail{white-space:normal;overflow-wrap:anywhere}',
+ '.ny26-day10-map-caution{color:#8d5d10}',
+ '.ny26-day10-map-footnote{color:#557587}',
+
  '@media(max-width:430px){.ny26-day10-actions .ny26-day10-link{width:100%}}'
  ].join('');
  const el=doc.createElement('style');el.id='ny26-day10-style';el.textContent=css;doc.head.appendChild(el);
@@ -184,7 +280,7 @@ function decorate(doc,pack){
  installStyle(doc);
  section.querySelector('.ny26-v157-day')?.remove();
  section.querySelector('.ny26-v157-tools')?.remove();
- section.querySelectorAll('[data-ny26-day10-ui],.ny26-day10-intro,[data-ny26-day10-generated]').forEach(n=>n.remove());
+ section.querySelectorAll('[data-ny26-day10-ui],.ny26-day10-intro,.ny26-day10-map,[data-ny26-day10-generated]').forEach(n=>n.remove());
  section.classList.remove('ny26-v157-view','ny26-v157-rest-hidden');section.classList.add('ny26-day10-mode');
  const originals=[...section.querySelectorAll('article.step')],refs=referenceStops(pack),used=new Set();
  const items=originals.map(card=>({title:title(card)||'Parada do roteiro',card,originalTime:originalTime(card),reference:findRef(title(card),refs,used)}));
@@ -201,8 +297,10 @@ function decorate(doc,pack){
  const h=doc.createElement('strong');h.textContent='📍 10/11 • roteiro por local';header.appendChild(h);
  const p=doc.createElement('p');p.textContent='Siga os cards numerados: horário do roteiro atualizado, GPS e o que fazer em cada local. Feito, fotos e comprovantes originais foram preservados.';header.appendChild(p);
  if(order[0]?.card)order[0].card.insertAdjacentElement('beforebegin',header);else section.prepend(header);
+ const maps=routeMapPanel(doc,order);
+ if(maps)header.insertAdjacentElement('afterend',maps);
  if(!aligned)console.warn('NY26: ordem 10/11 necessita conferência; dados originais preservados.');
  return {found:true,count:order.length,original:originals.length,aligned,withTime:order.filter(x=>x.exactMinute!==null).length};
 }
-window.NY26Day10UI={decorate,sortedEntries,minute,match,referenceStops,fallbackMinute,version:'1.0'};
+window.NY26Day10UI={decorate,sortedEntries,minute,match,referenceStops,fallbackMinute,routeSegments,buildMapsUrl,version:'1.1'};
 })();
