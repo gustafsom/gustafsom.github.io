@@ -921,6 +921,14 @@ function renderDay08Cards(doc,section,day){
  return {places:stops.length,original:cards.length,extra:placed.length-cards.filter(c=>placed.includes(c)).length};
 }
 function render(doc,section,day,scope){
+ if(day.date==='2026-11-10'){
+  // O dia 10 é exibido diretamente com os cards atualizados do usuário.
+  // O realçador específico é executado depois do overlay, sem uma segunda lista concorrente.
+  section.__ny26LegacyCleanup?.();section.__ny26LegacyCleanup=null;
+  section.querySelector('.ny26-v157-day')?.remove();section.querySelector('.ny26-v157-tools')?.remove();
+  section.classList.remove('ny26-v157-view','ny26-v157-rest-hidden');
+  return;
+ }
  if(day.date==='2026-11-08')return renderDay08Cards(doc,section,day);
  section.classList.remove('ny26-day08-cards-mode');
  section.querySelector('.ny26-v157-day')?.remove();
