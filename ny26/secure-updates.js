@@ -52,10 +52,21 @@ function apply(base,patches){
     for(const name of ['stops','places'])day[name]=day[name].filter(x=>!plain(x.title).includes(term));
     continue;
    }
-   const field=day.stops.length?'stops':'places',list=day[field];
+   // A planilha de 10/11 pode ter paradas tanto em stops quanto em places;
+   // procurar o local-âncora nas DUAS listas para não descartar lojas novas.
+   let field=day.stops.length?'stops':'places',list=day[field];
    let anchorIndex=-1,matchedAnchor='',position=op.position;
-   if(op.position==='after_washington'){
-    // Localizar a transição de Washington para Delaware; não inventar horários.
+   if(op.date==='2026-11-10'&&position!=='after_washington'){
+    const candidates=[op.anchor,...(op.fallbackAnchor?[op.fallbackAnchor]:[])];
+    for(const candidate of candidates){
+     const normalized=plain(candidate);
+     for(const key of ['stops','places']){
+      const found=day[key].findIndex(x=>plain(x.title)===normalized||plain(x.title).includes(normalized));
+      if(found>=0){field=key;list=day[key];anchorIndex=found;matchedAnchor=candidate;break}
+     }
+     if(anchorIndex>=0)break;
+    }
+   }else if(op.position==='after_washington'){
     const de=/\b(christiana|delaware|newark|wawa|quality inn|target|dollar tree|lojas de christiana)\b/i;
     const dc=/\b(capitol|white house|lincoln memorial|air and space|washington monument|world war|national mall|museu do ar)\b/i;
     const deIdx=list.findIndex(x=>de.test(plain(x.title)));
