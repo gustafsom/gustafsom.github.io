@@ -63,6 +63,12 @@ function sortedEntries(items){
 }
 function description(item){
  const ref=item.reference||{},v=window.NY26NYCPlaces?.lookup(item.title);
+ // Prefer the user's freshly updated PRIVATE HTML description over older references.
+ const root=item.card?.querySelector('.stepcontent');
+ const suggestions=root?[...root.querySelectorAll('.what-to-do,.step-description,.place-description,.description,.desc,p,.note')]:[];
+ const existing=suggestions.map(el=>trim(el.textContent)).find(value=>value.length>=28&&
+  !/^(?:feito|gps|comprovante|foto|abra no maps|abrir mapa|clique aqui|adicionar pdf)/i.test(value));
+ if(existing)return existing.slice(0,420);
  const own=trim(ref.instructions||ref.look||ref.why);
  if(own)return own.slice(0,420);
  if(v?.do)return v.do;
@@ -77,7 +83,8 @@ function gps(doc,item){
  const prior=item.card?.querySelector('a[href*="google.com/maps"],a[href*="maps.app.goo.gl"],a[href*="maps.apple.com"]');
  const v=window.NY26NYCPlaces?.lookup(item.title);
  const address=trim(item.reference?.address||v?.address);
- let href=prior?.href||'',text='📍 GPS • Google Maps';
+ // Explicitly approved private change outranks an older link from the original HTML.
+ let href=item.reference?.privateUpdateId&&item.reference?.address?'':prior?.href||'',text='📍 GPS • Google Maps';
  if(!href&&address)href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(address)+'&travelmode=walking';
  if(!href){href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(item.title+', New York, NY');text='🔎 Procurar no Maps'}
  if(!/^https:\/\//.test(href))return null;
